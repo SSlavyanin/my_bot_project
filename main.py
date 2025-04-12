@@ -1,5 +1,3 @@
-from threading import Thread
-from flask import Flask
 import logging
 import openai
 import httpx
@@ -62,7 +60,7 @@ async def handle_message(message: Message):
 
 if __name__ == "__main__":
     
-    
+    from threading import Thread
     def run():
         app.run(host='0.0.0.0', port=8080)
     Thread(target=run).start()
