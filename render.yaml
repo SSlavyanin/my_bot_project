@@ -11,3 +11,9 @@ services:
       - key: OPENROUTER_API_KEY
         sync: false
     pythonVersion: 3.11
+
+buildCommand: |
+  pip install --upgrade pip
+  pip install flask
+  pip install -r requirements.txt
+   
