@@ -66,5 +66,4 @@ if __name__ == "__main__":
     def run():
         app.run(host='0.0.0.0', port=8080)
     Thread(target=run).start()
-
-   executor.start_polling(dp, skip_updates=True)
+    executor.start_polling(dp, skip_updates=True)
