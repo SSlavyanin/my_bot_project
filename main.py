@@ -1,3 +1,4 @@
+from flask import Flask
 import logging
 import openai
 import httpx
@@ -10,6 +11,13 @@ import os
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENAI_BASE_URL = "https://openrouter.ai/api/v1"
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return 'Bot is alive!'
+
 
 # Настройка логгирования
 logging.basicConfig(level=logging.INFO)
@@ -54,3 +62,8 @@ async def handle_message(message: Message):
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
+    
+    from threading import Thread
+    def run():
+        app.run(host='0.0.0.0', port=8080)
+    Thread(target=run).start()
