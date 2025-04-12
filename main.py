@@ -5,7 +5,6 @@ import httpx
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
 from aiogram.utils import executor
-
 import os
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -61,9 +60,10 @@ async def handle_message(message: Message):
         await message.reply(reply)
 
 if __name__ == "__main__":
+    executor.start_polling(dp, skip_updates=True)
     
     from threading import Thread
     def run():
         app.run(host='0.0.0.0', port=8080)
     Thread(target=run).start()
-    executor.start_polling(dp, skip_updates=True)
+    
