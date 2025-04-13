@@ -17,7 +17,6 @@ app = Flask(__name__)
 def home():
     return 'Bot is alive!'
 
-
 # Настройка логгирования
 logging.basicConfig(level=logging.INFO)
 logging.info("Starting bot...")
@@ -28,24 +27,41 @@ dp = Dispatcher(bot)
 
 SYSTEM_PROMPT = "Ты — AIlex, эксперт по AI-автоматизации и заработку. Отвечаешь кратко, по делу, с идеями."
 
-# Генерация ответа
+# Обновлённая функция генерации ответа
 async def generate_reply(user_message: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",  # можно оставить как есть
-        "X-Title": "ShelezyakaBot"
+        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
+        "X-Title": "ShelezyakaBot",
+        "Content-Type": "application/json"
     }
     payload = {
-        "model": "mistralai/mistral-7b-instruct",  # или другой, см. openrouter.ai
+        "model": "mistralai/mistral-7b-instruct",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message}
         ]
     }
-    async with httpx.AsyncClient() as client:
-        response = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
+
+        if response.status_code != 200:
+            logging.error(f"OpenRouter API Error {response.status_code}: {response.text}")
+            return "❌ Ошибка при обращении к OpenRouter. Попробуйте позже."
+
         data = response.json()
+
+        if 'choices' not in data:
+            logging.error(f"Неверный ответ от OpenRouter: {data}")
+            return "❌ Неверный ответ от OpenRouter. Попробуйте позже."
+
         return data['choices'][0]['message']['content']
+
+    except Exception as e:
+        logging.exception("❌ Ошибка при генерации ответа:")
+        return "⚠️ Произошла непредвиденная ошибка. Попробуйте позже."
 
 # Обработка сообщений
 @dp.message_handler()
@@ -60,11 +76,9 @@ async def handle_message(message: Message):
         await message.reply(reply)
 
 if __name__ == "__main__":
-    
     from threading import Thread
     def run():
         app.run(host='0.0.0.0', port=8080)
     Thread(target=run).start()
 
     executor.start_polling(dp, skip_updates=True)
-    
