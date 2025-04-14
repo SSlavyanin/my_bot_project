@@ -7,7 +7,6 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 import httpx
 import random
-from datetime import datetime, timedelta
 
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -38,9 +37,7 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
 GROUP_ID = -1002572659328
-SYSTEM_PROMPT = "Ты — AIlex, нейрочеловек. Пиши живо, легко, умно. "
-    "Кратко, с идеями, как будто делишься своими находками. "
-    "Без занудства. Стиль ближе к Telegram, допускается сленг, примеры, риторические вопросы."
+SYSTEM_PROMPT = "Ты — AIlex, нейрочеловек. Пиши живо, легко, умно. Кратко, с идеями, как будто делишься своими находками. Без занудства. Стиль ближе к Telegram, допускается сленг, примеры, риторические вопросы."
 
 # ✨ Генерация поста
 async def generate_post():
@@ -88,55 +85,9 @@ async def auto_poster():
                 logging.info("Пост отправлен.")
             except Exception as e:
                 logging.error(f"Ошибка при отправке автопоста: {e}")
-        await asyncio.sleep(60 * 60 + random.randint(60, 300))  # интервал около 1ч 5м
+        await asyncio.sleep(3600 + random.randint(60, 300))  # ~1 час и небольшой разброс
 
 # 💬 Обработка входящих сообщений
 @dp.message_handler(commands=["start_posts"])
 async def cmd_start(message: types.Message):
-    if str(message.chat.id) == str(GROUP_ID):
-        await message.reply("Постинг запущен.")
-        asyncio.create_task(auto_poster())
-
-@dp.message_handler()
-async def handle_message(message: types.Message):
-    if message.chat.type in ["group", "supergroup"]:
-        if f"@{(await bot.get_me()).username}" in message.text:
-            user_msg = message.text.replace(f"@{(await bot.get_me()).username}", "").strip()
-            reply = await generate_reply(user_msg)
-            await message.reply(reply)
-    else:
-        reply = await generate_reply(message.text)
-        await message.reply(reply)
-
-# 💬 Генерация ответа
-async def generate_reply(user_message: str) -> str:
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
-        "X-Title": "AIlexBot"
-    }
-    payload = {
-        "model": "deepseek/deepseek-r1:free",
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message}
-        ]
-    }
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
-            data = response.json()
-            return data['choices'][0]['message']['content']
-        except Exception as e:
-            logging.error(f"OpenRouter API error: {e}")
-            return "Ошибка генерации ответа."
-
-# 🚀 Запуск Flask и бота
-if __name__ == "__main__":
-    def run_flask():
-        app.run(host='0.0.0.0', port=8080)
-
-    Thread(target=run_flask).start()
-    loop = asyncio.get_event_loop()
-    loop.create_task(self_ping())
-    executor.start_polling(dp, skip_updates=True)
+    if str(message.chat.id) == str(GROUP
