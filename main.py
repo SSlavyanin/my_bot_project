@@ -74,6 +74,13 @@ async def generate_reply(user_message: str) -> str:
             return "Ошибка генерации ответа. Попробуйте позже."
         return data['choices'][0]['message']['content']
 
+# Команда автопостинга
+@dp.message_handler(commands=["start_posts"])
+async def start_posts(message: types.Message):
+    await message.reply("🚀 Автопостинг запущен.")
+    asyncio.create_task(auto_posting())
+
+
 # 💬 Обработка сообщений
 @dp.message_handler()
 async def handle_message(message: types.Message):
