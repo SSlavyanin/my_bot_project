@@ -6,6 +6,7 @@ from flask import Flask
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 import httpx
+import random
 
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -28,17 +29,19 @@ async def self_ping():
             logging.info("Self-ping sent.")
         except Exception as e:
             logging.error(f"Self-ping error: {e}")
-        await asyncio.sleep(600)  # каждые 10 минут
+        await asyncio.sleep(600)
 
 # 🤖 Настройка логгирования и бота
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
-SYSTEM_PROMPT = ("Ты — AIlex, нейрочеловек. Пиши живо, легко, умно. "
+SYSTEM_PROMPT = (
+    "Ты — AIlex, нейрочеловек. Пиши живо, легко, умно. "
     "Кратко, с идеями, как будто делишься своими находками. "
     "Без занудства. Стиль ближе к Telegram, допускается сленг, примеры, риторические вопросы."
 )
+
 TOPICS = [
     "Как использовать ИИ в повседневной жизни?",
     "Примеры автоматизации с помощью нейросетей",
@@ -56,7 +59,7 @@ TOPICS = [
 async def generate_reply(user_message: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",  # Можно заменить на свой
+        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",  # Можно заменить
         "X-Title": "ShelezyakaBot"
     }
     payload = {
@@ -74,12 +77,30 @@ async def generate_reply(user_message: str) -> str:
             return "Ошибка генерации ответа. Попробуйте позже."
         return data['choices'][0]['message']['content']
 
-# Команда автопостинга
+# Автопостинг
+GROUP_ID = 2572659328
+
+async def auto_posting():
+    while True:
+        topic = random.choice(TOPICS)
+        try:
+            post = await generate_reply(topic)
+            await bot.send_message(chat_id=GROUP_ID, text=post)
+            logging.info("Пост отправлен.")
+        except Exception as e:
+            logging.error(f"Ошибка при отправке автопоста: {e}")
+        await asyncio.sleep(60 * 60 * 2.5)  # 2.5 часа
+
+# Безопасный запуск автопостинга
 @dp.message_handler(commands=["start_posts"])
 async def start_posts(message: types.Message):
+    async def safe_auto_posting():
+        try:
+            await auto_posting()
+        except Exception as e:
+            logging.error(f"Autoposting task crashed: {e}")
+    asyncio.create_task(safe_auto_posting())
     await message.reply("🚀 Автопостинг запущен.")
-    asyncio.create_task(auto_posting())
-
 
 # 💬 Обработка сообщений
 @dp.message_handler()
@@ -99,7 +120,6 @@ if __name__ == "__main__":
         app.run(host='0.0.0.0', port=8080)
 
     Thread(target=run_flask).start()
-
     loop = asyncio.get_event_loop()
-    loop.create_task(self_ping())  # запускаем self-ping
+    loop.create_task(self_ping())
     executor.start_polling(dp, skip_updates=True)
