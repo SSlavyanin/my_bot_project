@@ -1,13 +1,12 @@
 import os
 import logging
 import asyncio
+import random
 from threading import Thread
 from flask import Flask
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 import httpx
-import random
-import time
 
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -43,7 +42,7 @@ SYSTEM_PROMPT = "Ты — AIlex, эксперт по AI-автоматизаци
 async def generate_reply(user_message: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",  # Можно заменить на свой
+        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
         "X-Title": "ShelezyakaBot"
     }
     payload = {
@@ -61,6 +60,42 @@ async def generate_reply(user_message: str) -> str:
             return "Ошибка генерации ответа. Попробуйте позже."
         return data['choices'][0]['message']['content']
 
+# 💬 Ответ на команды
+@dp.message_handler(commands=["id"])
+async def send_chat_id(message: types.Message):
+    await message.reply(f"Chat ID: {message.chat.id}")
+
+@dp.message_handler(commands=["start_posts"])
+async def start_posts(message: types.Message):
+    await message.reply("AIlex запускает автопостинг!")
+    asyncio.create_task(auto_post())
+
+# 🔁 Автопостинг в группу
+GROUP_ID = -1002572659328
+POST_INTERVAL = 2.5 * 60 * 60  # 2.5 часа
+
+POST_TOPICS = [
+    "ИИ в повседневной жизни",
+    "Автоматизация бизнес-процессов",
+    "Идеи заработка с помощью ИИ",
+    "AI в контент-маркетинге",
+    "Чат-боты для продаж",
+    "AI в обучении и самообразовании",
+    "Промпт-инжиниринг",
+    "AI-инструменты для фриланса",
+    "AI и удалённая работа",
+    "Как зарабатывать с нейросетями"
+]
+
+async def auto_post():
+    for topic in POST_TOPICS:
+        try:
+            await bot.send_message(GROUP_ID, f"🤖 {topic}")
+            logging.info(f"Отправлен пост: {topic}")
+        except Exception as e:
+            logging.error(f"Ошибка при отправке автопоста: {e}")
+        await asyncio.sleep(random.randint(10, 20))  # задержка между постами
+
 # 💬 Обработка сообщений
 @dp.message_handler()
 async def handle_message(message: types.Message):
@@ -72,37 +107,6 @@ async def handle_message(message: types.Message):
     else:
         reply = await generate_reply(message.text)
         await message.reply(reply)
-        
-# Обработчик /id
-@dp.message_handler(commands=["start_posts"])
-async def start_posts(message: types.Message):
-    await message.reply("AIlex запускает автопостинг!")
-    asyncio.create_task(auto_post())
-
-# 📅 Автопубликация постов
-async def auto_post():
-    group_id = 2572659328
-    topics = [
-        "Как ИИ помогает оптимизировать бизнес-процессы.",
-        "Автоматизация процессов с использованием нейросетей.",
-        "Идеи для заработка с помощью AI: от создания приложений до консультаций.",
-        "Как искусственный интеллект влияет на образование и обучение.",
-        "Использование AI для предсказания трендов в бизнесе.",
-        "Заработок на машинном обучении: от фриланса до стартапов.",
-        "Какие навыки важны для работы с ИИ в будущем.",
-        "Идеи для бизнеса с использованием чат-ботов и автоматизации.",
-        "Как искусственный интеллект помогает в создании контента.",
-        "Как AI помогает людям с ограниченными возможностями."
-    ]
-    
-    while True:
-        message = random.choice(topics)
-        try:
-            await bot.send_message(group_id, message)
-            logging.info(f"Автопост: '{message}' отправлен в группу.")
-            await asyncio.sleep(9000)  # Пауза 2.5 часа между постами
-        except Exception as e:
-            logging.error(f"Ошибка при отправке автопоста: {e}")
 
 # 🚀 Запуск Flask и бота
 if __name__ == "__main__":
@@ -113,5 +117,4 @@ if __name__ == "__main__":
 
     loop = asyncio.get_event_loop()
     loop.create_task(self_ping())  # запускаем self-ping
-    loop.create_task(auto_post())  # запускаем автопубликацию
     executor.start_polling(dp, skip_updates=True)
