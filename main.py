@@ -74,9 +74,10 @@ async def handle_message(message: types.Message):
         await message.reply(reply)
         
 # Обработчик /id
-@dp.message_handler(commands=["id"])
-async def send_chat_id(message: types.Message):
-    await message.reply(f"Chat ID: {message.chat.id}")
+@dp.message_handler(commands=["start_posts"])
+async def start_posts(message: types.Message):
+    await message.reply("AIlex запускает автопостинг!")
+    asyncio.create_task(auto_post())
 
 # 📅 Автопубликация постов
 async def auto_post():
