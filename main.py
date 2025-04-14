@@ -1,26 +1,27 @@
 import os
 import logging
 import asyncio
-import random
 from threading import Thread
 from flask import Flask
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 import httpx
+import random
+from datetime import datetime, timedelta
 
+# 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-GROUP_ID = -1002572659328  # ID Telegram-группы
-POST_INTERVAL = 9000  # 2.5 часа
+OPENAI_BASE_URL = "https://openrouter.ai/api/v1"
 
-OPENROUTER_API_URL = "https://openrouter.ai/api/v1"
-
+# 🌐 Flask-сервер для Render
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return 'Bot is alive!'
 
+# 📌 Self-ping
 async def self_ping():
     while True:
         try:
@@ -31,77 +32,106 @@ async def self_ping():
             logging.error(f"Self-ping error: {e}")
         await asyncio.sleep(600)
 
+# 🤖 Настройка логгирования и бота
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
-SYSTEM_PROMPT = (
-    "Ты — AIlex, нейрочеловек. Пиши живо, легко, умно. "
+GROUP_ID = -1002572659328
+SYSTEM_PROMPT = "Ты — AIlex, нейрочеловек. Пиши живо, легко, умно. "
     "Кратко, с идеями, как будто делишься своими находками. "
     "Без занудства. Стиль ближе к Telegram, допускается сленг, примеры, риторические вопросы."
-)
 
-TOPICS = [
-    "Как использовать ИИ в повседневной жизни?",
-    "Примеры автоматизации с помощью нейросетей",
-    "Идеи пассивного дохода с AI-инструментами",
-    "Топ-3 сервиса для заработка на ИИ без навыков",
-    "Как сэкономить 10 часов в неделю с помощью ChatGPT?",
-    "Новая профессия — AI-оператор. Что это?",
-    "Автоматизация рутинных задач через Telegram-ботов",
-    "Как бизнесу заработать больше с помощью нейросетей?",
-    "Почему не поздно входить в AI в 2025?",
-    "Как собрать автоворонку на базе ИИ за 1 вечер"
-]
-
-async def generate_post(topic: str) -> str:
+# ✨ Генерация поста
+async def generate_post():
+    themes = [
+        "Как использовать ИИ в повседневной жизни",
+        "Простая автоматизация рутинных задач",
+        "Идеи пассивного дохода с ИИ",
+        "Боты для бизнеса: зачем и как",
+        "ИИ как помощник в фрилансе",
+        "5 AI-инструментов, которые сэкономят тебе время",
+        "Новые тренды в AI-заработке",
+        "Как сделать нейросеть своим партнёром по бизнесу",
+        "Минималистичный способ заработка с ChatGPT",
+        "ИИ в телеграм: каналы, боты и подписки"
+    ]
+    theme = random.choice(themes)
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
-        "X-Title": "ShelezyakaBot"
+        "X-Title": "AIlexBot"
     }
     payload = {
-        "model": "nousresearch/nous-capybara-7b",
+        "model": "deepseek/deepseek-r1:free",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Напиши короткий, умный Telegram-пост на тему: {topic}"}
+            {"role": "user", "content": f"Напиши короткий пост в Telegram на тему: {theme}. Стиль — нейрочел, идеи, краткость, польза."}
         ]
     }
     async with httpx.AsyncClient() as client:
-        response = await client.post(OPENROUTER_API_URL + "/chat/completions", json=payload, headers=headers)
-        data = response.json()
-        if "choices" not in data:
-            logging.error(f"Ошибка генерации поста: {data}")
-            return "⚠️ Не удалось сгенерировать пост."
-        return data["choices"][0]["message"]["content"]
-
-async def auto_posting():
-    while True:
-        topic = random.choice(TOPICS)
-        post = await generate_post(topic)
         try:
-            await bot.send_message(GROUP_ID, post)
-            logging.info("Пост отправлен.")
+            res = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
+            data = res.json()
+            return data['choices'][0]['message']['content']
         except Exception as e:
-            logging.error(f"Ошибка при отправке автопоста: {e}")
-        await asyncio.sleep(POST_INTERVAL)
+            logging.error(f"Ошибка генерации поста: {e}")
+            return None
 
+# ⏱️ Автопостинг
+async def auto_poster():
+    while True:
+        post = await generate_post()
+        if post:
+            try:
+                await bot.send_message(chat_id=GROUP_ID, text=post)
+                logging.info("Пост отправлен.")
+            except Exception as e:
+                logging.error(f"Ошибка при отправке автопоста: {e}")
+        await asyncio.sleep(60 * 60 + random.randint(60, 300))  # интервал около 1ч 5м
+
+# 💬 Обработка входящих сообщений
 @dp.message_handler(commands=["start_posts"])
-async def start_posts(message: types.Message):
-    await message.reply("🚀 Автопостинг запущен.")
-    asyncio.create_task(auto_posting())
+async def cmd_start(message: types.Message):
+    if str(message.chat.id) == str(GROUP_ID):
+        await message.reply("Постинг запущен.")
+        asyncio.create_task(auto_poster())
 
 @dp.message_handler()
 async def handle_message(message: types.Message):
     if message.chat.type in ["group", "supergroup"]:
         if f"@{(await bot.get_me()).username}" in message.text:
             user_msg = message.text.replace(f"@{(await bot.get_me()).username}", "").strip()
-            reply = await generate_post(user_msg)
+            reply = await generate_reply(user_msg)
             await message.reply(reply)
     else:
-        reply = await generate_post(message.text)
+        reply = await generate_reply(message.text)
         await message.reply(reply)
 
+# 💬 Генерация ответа
+async def generate_reply(user_message: str) -> str:
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
+        "X-Title": "AIlexBot"
+    }
+    payload = {
+        "model": "deepseek/deepseek-r1:free",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_message}
+        ]
+    }
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
+            data = response.json()
+            return data['choices'][0]['message']['content']
+        except Exception as e:
+            logging.error(f"OpenRouter API error: {e}")
+            return "Ошибка генерации ответа."
+
+# 🚀 Запуск Flask и бота
 if __name__ == "__main__":
     def run_flask():
         app.run(host='0.0.0.0', port=8080)
