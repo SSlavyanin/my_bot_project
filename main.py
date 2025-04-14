@@ -72,6 +72,11 @@ async def handle_message(message: types.Message):
     else:
         reply = await generate_reply(message.text)
         await message.reply(reply)
+        
+# Обработчик /id
+@dp.message_handler(commands=["id"])
+async def send_chat_id(message: types.Message):
+    await message.reply(f"Chat ID: {message.chat.id}")
 
 # 📅 Автопубликация постов
 async def auto_post():
