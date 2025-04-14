@@ -105,28 +105,28 @@ async def handle_message(message: types.Message):
         reply = await generate_reply(message.text)
         await message.reply(reply)
 
-# 💬 Генерация ответа
+# ✨ Генерация ответа от OpenRouter
 async def generate_reply(user_message: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
+        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",  # при необходимости замени
         "X-Title": "AIlexBot"
     }
     payload = {
-        "model": "deepseek/deepseek-r1:free",
+        "model": "meta-llama/llama-4-maverick:free",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message}
         ]
     }
     async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
-            data = response.json()
-            return data['choices'][0]['message']['content']
-        except Exception as e:
-            logging.error(f"OpenRouter API error: {e}")
-            return "Ошибка генерации ответа."
+        response = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
+        data = response.json()
+        if "choices" not in data:
+            logging.error(f"OpenRouter API error: {data}")
+            return "Ошибка генерации ответа. Попробуйте позже."
+        return data['choices'][0]['message']['content']
+
 
 # 🚀 Запуск Flask и бота
 if __name__ == "__main__":
