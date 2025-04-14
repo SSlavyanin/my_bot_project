@@ -78,7 +78,7 @@ async def generate_reply(user_message: str) -> str:
         return data['choices'][0]['message']['content']
 
 # Автопостинг
-GROUP_ID = 2572659328
+GROUP_ID = -1002572659328
 
 async def auto_posting():
     while True:
