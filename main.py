@@ -59,11 +59,11 @@ TOPICS = [
 async def generate_reply(user_message: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",  # Можно заменить
+        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",  # можно заменить
         "X-Title": "ShelezyakaBot"
     }
     payload = {
-        "model": "mistralai/mistral-7b-instruct",
+        "model": "openchat/openchat-3.5:free",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message}
@@ -77,21 +77,38 @@ async def generate_reply(user_message: str) -> str:
             return "Ошибка генерации ответа. Попробуйте позже."
         return data['choices'][0]['message']['content']
 
-# Автопостинг
+# 🔍 Фильтр качества поста
+def is_post_quality_ok(text: str) -> bool:
+    if len(text) < 200:
+        return False
+    if any(word in text.lower() for word in ["извините", "я всего лишь", "как модель", "не могу помочь"]):
+        return False
+    if not any(p in text for p in ["?", "!", "—", "-", "…"]):
+        return False
+    return True
+
+# 📢 Автопостинг с фильтрацией
 GROUP_ID = -1002572659328
 
 async def auto_posting():
     while True:
         topic = random.choice(TOPICS)
         try:
-            post = await generate_reply(topic)
+            for _ in range(3):  # до 3 попыток
+                post = await generate_reply(topic)
+                if is_post_quality_ok(post):
+                    break
+                logging.info("Пост не прошёл фильтр.")
+            else:
+                post = "⚠ Не удалось сгенерировать достойный пост. Пропускаем."
+
             await bot.send_message(chat_id=GROUP_ID, text=post)
             logging.info("Пост отправлен.")
         except Exception as e:
             logging.error(f"Ошибка при отправке автопоста: {e}")
         await asyncio.sleep(60 * 60 * 2.5)  # 2.5 часа
 
-# Безопасный запуск автопостинга
+# 🚦 Запуск автопостинга
 @dp.message_handler(commands=["start_posts"])
 async def start_posts(message: types.Message):
     async def safe_auto_posting():
@@ -102,7 +119,7 @@ async def start_posts(message: types.Message):
     asyncio.create_task(safe_auto_posting())
     await message.reply("🚀 Автопостинг запущен.")
 
-# 💬 Обработка сообщений
+# 💬 Ответы на сообщения
 @dp.message_handler()
 async def handle_message(message: types.Message):
     if message.chat.type in ["group", "supergroup"]:
@@ -114,7 +131,7 @@ async def handle_message(message: types.Message):
         reply = await generate_reply(message.text)
         await message.reply(reply)
 
-# 🚀 Запуск Flask и бота
+# 🌐 Запуск Flask и бота
 if __name__ == "__main__":
     def run_flask():
         app.run(host='0.0.0.0', port=8080)
