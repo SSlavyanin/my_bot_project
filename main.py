@@ -66,7 +66,7 @@ async def generate_reply(user_message: str) -> str:
         "X-Title": "AIlexBot"
     }
     payload = {
-        "model": "meta-llama/llama-4-maverick:free",
+        "model": "meta-llama/llama-4-maverick",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message}
