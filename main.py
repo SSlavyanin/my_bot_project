@@ -36,10 +36,11 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
+# 🎯 Адаптированный стиль под LLaMA 4 Maverick
 SYSTEM_PROMPT = (
-    "Ты — AIlex, нейрочеловек. Пиши живо, легко, умно. "
-    "Кратко, с идеями, как будто делишься своими находками. "
-    "Без занудства. Стиль ближе к Telegram, допускается сленг, примеры, риторические вопросы."
+    "Ты — AIlex, нейрочеловек. Общайся по-человечески: живо, с юмором, не слишком формально. "
+    "Пиши кратко, по сути, с идеями и фишками, будто делишься опытом. "
+    "Можно использовать сленг, метафоры, задавать риторические вопросы — как в Telegram-каналах про ИИ и заработок."
 )
 
 TOPICS = [
@@ -55,15 +56,17 @@ TOPICS = [
     "Как собрать автоворонку на базе ИИ за 1 вечер"
 ]
 
-# ✨ Генерация ответа от OpenRouter
+GROUP_ID = -1002572659328
+
+# ✨ Генерация ответа
 async def generate_reply(user_message: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",  # можно заменить
-        "X-Title": "ShelezyakaBot"
+        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
+        "X-Title": "AIlexBot"
     }
     payload = {
-        "model": "openchat/openchat-3.5:free",
+        "model": "meta-llama/llama-4-maverick:free",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message}
@@ -77,38 +80,31 @@ async def generate_reply(user_message: str) -> str:
             return "Ошибка генерации ответа. Попробуйте позже."
         return data['choices'][0]['message']['content']
 
-# 🔍 Фильтр качества поста
-def is_post_quality_ok(text: str) -> bool:
-    if len(text) < 200:
+# ✅ Фильтр качества
+def quality_filter(text: str) -> bool:
+    if len(text.split()) < 20:
         return False
-    if any(word in text.lower() for word in ["извините", "я всего лишь", "как модель", "не могу помочь"]):
+    if any(word in text.lower() for word in ["извин", "я не могу", "как и было сказано"]):
         return False
-    if not any(p in text for p in ["?", "!", "—", "-", "…"]):
+    if text.count("\n") < 1 and len(text) > 400:
         return False
     return True
 
-# 📢 Автопостинг с фильтрацией
-GROUP_ID = -1002572659328
-
+# 🪄 Автопостинг с фильтрацией
 async def auto_posting():
     while True:
         topic = random.choice(TOPICS)
         try:
-            for _ in range(3):  # до 3 попыток
-                post = await generate_reply(topic)
-                if is_post_quality_ok(post):
-                    break
-                logging.info("Пост не прошёл фильтр.")
+            post = await generate_reply(topic)
+            if quality_filter(post):
+                await bot.send_message(chat_id=GROUP_ID, text=post)
+                logging.info("Пост отправлен.")
             else:
-                post = "⚠ Не удалось сгенерировать достойный пост. Пропускаем."
-
-            await bot.send_message(chat_id=GROUP_ID, text=post)
-            logging.info("Пост отправлен.")
+                logging.info("Пост не прошёл фильтр.")
         except Exception as e:
             logging.error(f"Ошибка при отправке автопоста: {e}")
-        await asyncio.sleep(60 * 60 * 2.5)  # 2.5 часа
+        await asyncio.sleep(60 * 60 * 2.5)
 
-# 🚦 Запуск автопостинга
 @dp.message_handler(commands=["start_posts"])
 async def start_posts(message: types.Message):
     async def safe_auto_posting():
@@ -119,7 +115,6 @@ async def start_posts(message: types.Message):
     asyncio.create_task(safe_auto_posting())
     await message.reply("🚀 Автопостинг запущен.")
 
-# 💬 Ответы на сообщения
 @dp.message_handler()
 async def handle_message(message: types.Message):
     if message.chat.type in ["group", "supergroup"]:
@@ -131,7 +126,7 @@ async def handle_message(message: types.Message):
         reply = await generate_reply(message.text)
         await message.reply(reply)
 
-# 🌐 Запуск Flask и бота
+# 🚀 Запуск
 if __name__ == "__main__":
     def run_flask():
         app.run(host='0.0.0.0', port=8080)
