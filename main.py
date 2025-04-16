@@ -109,7 +109,7 @@ async def auto_posting():
 
 # 🎯 Создание кнопки для общения с ботом
 def create_post_keyboard():
-    chat_link = "https://t.me/your_bot_username"  # Замените на ваш username бота
+    chat_link = "https://t.me/ShilizyakaBot?start=from_post"  # Замените на ваш username бота
     button = InlineKeyboardButton(text="Обсудить с ботом", url=chat_link)
     keyboard = InlineKeyboardMarkup(row_width=1).add(button)
     return keyboard
