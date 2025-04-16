@@ -8,6 +8,7 @@ from aiogram.utils import executor
 import httpx
 import random
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import ParseMode
 
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -37,11 +38,11 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
-# 🎯 Адаптированный стиль под LLaMA 4 Maverick
+# 🎯 Стиль под LLaMA 4 Maverick
 SYSTEM_PROMPT = (
     "Ты — AIlex, нейрочеловек. Общайся по-человечески: живо, с юмором, не слишком формально. "
-    "Пиши кратко, по сути, с идеями и фишками, будто делишься опытом. "
-    "Можно использовать сленг, метафоры, задавать риторические вопросы — как в Telegram-каналах про ИИ и заработок."
+    "Пиши кратко, по сути, с идеями и фишками, будто делишься опытом. Можно использовать эмодзи, списки, "
+    "жирный текст (в Markdown), заголовки, как в Telegram-каналах про ИИ и заработок."
 )
 
 TOPICS = [
@@ -63,7 +64,7 @@ GROUP_ID = -1002572659328
 async def generate_reply(user_message: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
+        "HTTP-Referer": "https://t.me/ShilizyakaBot",
         "X-Title": "AIlexBot"
     }
     payload = {
@@ -93,6 +94,7 @@ def quality_filter(text: str) -> bool:
 
 # 🪄 Автопостинг с фильтрацией
 async def auto_posting():
+    await asyncio.sleep(10)
     while True:
         topic = random.choice(TOPICS)
         try:
@@ -106,7 +108,7 @@ async def auto_posting():
             logging.error(f"Ошибка при отправке автопоста: {e}")
         await asyncio.sleep(60 * 60 * 2.5)
 
-# 🎯 Создание кнопки для общения с ботом
+# 🎯 Кнопка для перехода к боту
 def create_post_keyboard():
     chat_link = "https://t.me/ShilizyakaBot?start=from_post"
     button = InlineKeyboardButton(text="Обсудить с ботом", url=chat_link)
@@ -116,12 +118,12 @@ def create_post_keyboard():
 # 📢 Отправка поста с кнопкой
 async def post_with_button(post_text: str):
     keyboard = create_post_keyboard()
-    await bot.send_message(
-        chat_id=GROUP_ID,
-        text=post_text,
-        reply_markup=keyboard,
-        parse_mode=None  # <== УБРАНА Markdown-разметка
-    )
+    try:
+        await bot.send_message(chat_id=GROUP_ID, text=post_text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN)
+    except Exception as e:
+        logging.error(f"Ошибка отправки поста: {e}")
+        clean_text = post_text.replace("*", "").replace("_", "").replace("`", "")
+        await bot.send_message(chat_id=GROUP_ID, text=clean_text, reply_markup=keyboard)
 
 @dp.message_handler(commands=["start_posts"])
 async def start_posts(message: types.Message):
@@ -152,5 +154,5 @@ if __name__ == "__main__":
     Thread(target=run_flask).start()
     loop = asyncio.get_event_loop()
     loop.create_task(self_ping())
-    loop.create_task(auto_posting())  # 🟢 Автопостинг включается сразу
+    loop.create_task(auto_posting())
     executor.start_polling(dp, skip_updates=True)
