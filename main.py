@@ -1,4 +1,3 @@
-
 import os
 import logging
 import asyncio
@@ -9,7 +8,6 @@ from aiogram.utils import executor
 import httpx
 import random
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.types import ParseMode
 
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -108,17 +106,32 @@ async def auto_posting():
             logging.error(f"Ошибка при отправке автопоста: {e}")
         await asyncio.sleep(60 * 60 * 2.5)
 
-# 🎯 Кнопка "Обсудить с ботом"
+# 🎯 Создание кнопки для общения с ботом
 def create_post_keyboard():
     chat_link = "https://t.me/ShilizyakaBot?start=from_post"
     button = InlineKeyboardButton(text="Обсудить с ботом", url=chat_link)
     keyboard = InlineKeyboardMarkup(row_width=1).add(button)
     return keyboard
 
-# 📢 Отправка поста
+# 📢 Отправка поста с кнопкой
 async def post_with_button(post_text: str):
     keyboard = create_post_keyboard()
-    await bot.send_message(chat_id=GROUP_ID, text=post_text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN)
+    await bot.send_message(
+        chat_id=GROUP_ID,
+        text=post_text,
+        reply_markup=keyboard,
+        parse_mode=None  # <== УБРАНА Markdown-разметка
+    )
+
+@dp.message_handler(commands=["start_posts"])
+async def start_posts(message: types.Message):
+    async def safe_auto_posting():
+        try:
+            await auto_posting()
+        except Exception as e:
+            logging.error(f"Autoposting task crashed: {e}")
+    asyncio.create_task(safe_auto_posting())
+    await message.reply("🚀 Автопостинг запущен.")
 
 @dp.message_handler()
 async def handle_message(message: types.Message):
@@ -137,9 +150,7 @@ if __name__ == "__main__":
         app.run(host='0.0.0.0', port=8080)
 
     Thread(target=run_flask).start()
-
-    async def on_startup(_):
-        asyncio.create_task(self_ping())
-        asyncio.create_task(auto_posting())
-
-    executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
+    loop = asyncio.get_event_loop()
+    loop.create_task(self_ping())
+    loop.create_task(auto_posting())  # 🟢 Автопостинг включается сразу
+    executor.start_polling(dp, skip_updates=True)
