@@ -7,6 +7,8 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 import httpx
 import random
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import ParseMode
 
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -97,13 +99,25 @@ async def auto_posting():
         try:
             post = await generate_reply(topic)
             if quality_filter(post):
-                await bot.send_message(chat_id=GROUP_ID, text=post)
+                await post_with_button(post)
                 logging.info("Пост отправлен.")
             else:
                 logging.info("Пост не прошёл фильтр.")
         except Exception as e:
             logging.error(f"Ошибка при отправке автопоста: {e}")
         await asyncio.sleep(60 * 60 * 2.5)
+
+# 🎯 Создание кнопки для общения с ботом
+def create_post_keyboard():
+    chat_link = "https://t.me/your_bot_username"  # Замените на ваш username бота
+    button = InlineKeyboardButton(text="Обсудить с ботом", url=chat_link)
+    keyboard = InlineKeyboardMarkup(row_width=1).add(button)
+    return keyboard
+
+# 📢 Отправка поста с кнопкой
+async def post_with_button(post_text: str):
+    keyboard = create_post_keyboard()
+    await bot.send_message(chat_id=GROUP_ID, text=post_text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN)
 
 @dp.message_handler(commands=["start_posts"])
 async def start_posts(message: types.Message):
