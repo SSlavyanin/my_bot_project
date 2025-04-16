@@ -1,3 +1,4 @@
+
 import os
 import logging
 import asyncio
@@ -7,7 +8,8 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 import httpx
 import random
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import ParseMode
 
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -37,7 +39,7 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 
-# 🎯 Системный промпт
+# 🎯 Адаптированный стиль под LLaMA 4 Maverick
 SYSTEM_PROMPT = (
     "Ты — AIlex, нейрочеловек. Общайся по-человечески: живо, с юмором, не слишком формально. "
     "Пиши кратко, по сути, с идеями и фишками, будто делишься опытом. "
@@ -63,7 +65,7 @@ GROUP_ID = -1002572659328
 async def generate_reply(user_message: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://t.me/ShilizyakaBot",
+        "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
         "X-Title": "AIlexBot"
     }
     payload = {
@@ -106,31 +108,18 @@ async def auto_posting():
             logging.error(f"Ошибка при отправке автопоста: {e}")
         await asyncio.sleep(60 * 60 * 2.5)
 
-# 🎯 Кнопка для общения с ботом
+# 🎯 Кнопка "Обсудить с ботом"
 def create_post_keyboard():
     chat_link = "https://t.me/ShilizyakaBot?start=from_post"
-    logging.info(f"Кнопка ведёт на: {chat_link}")
-    button = InlineKeyboardButton(text="💬 Задать вопрос боту", url=chat_link)
+    button = InlineKeyboardButton(text="Обсудить с ботом", url=chat_link)
     keyboard = InlineKeyboardMarkup(row_width=1).add(button)
     return keyboard
 
-# 📢 Отправка поста с кнопкой
+# 📢 Отправка поста
 async def post_with_button(post_text: str):
     keyboard = create_post_keyboard()
     await bot.send_message(chat_id=GROUP_ID, text=post_text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN)
 
-# 🔘 Команда для запуска автопостинга вручную
-@dp.message_handler(commands=["start_posts"])
-async def start_posts(message: types.Message):
-    async def safe_auto_posting():
-        try:
-            await auto_posting()
-        except Exception as e:
-            logging.error(f"Autoposting task crashed: {e}")
-    asyncio.create_task(safe_auto_posting())
-    await message.reply("🚀 Автопостинг запущен.")
-
-# 📩 Ответ на сообщения
 @dp.message_handler()
 async def handle_message(message: types.Message):
     if message.chat.type in ["group", "supergroup"]:
@@ -148,6 +137,9 @@ if __name__ == "__main__":
         app.run(host='0.0.0.0', port=8080)
 
     Thread(target=run_flask).start()
-    loop = asyncio.get_event_loop()
-    loop.create_task(self_ping())
-    executor.start_polling(dp, skip_updates=True)
+
+    async def on_startup(_):
+        asyncio.create_task(self_ping())
+        asyncio.create_task(auto_posting())
+
+    executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
