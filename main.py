@@ -101,7 +101,8 @@ async def self_ping():
 @dp.message_handler(commands=["start"])
 async def start_handler(msg: types.Message):
     if msg.chat.type == "private":
-        await msg.reply("👋 Привет, я AIlex. Чем могу помочь? Просто напиши!")
+        await msg.reply("Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации.
+        Чем могу помочь? Задай вопрос — и я сразу отвечу!")
 
 @dp.message_handler()
 async def reply_handler(msg: types.Message):
