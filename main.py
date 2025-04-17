@@ -5,6 +5,7 @@ import random
 from flask import Flask
 from threading import Thread
 import httpx
+import feedparser
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ParseMode
 from aiogram.dispatcher.filters import CommandStart
@@ -29,21 +30,22 @@ def index():
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
-# 💡 Постинг
+# 🧠 Системный промпт для генерации постов с выгоды/инструмента, с акцентом на заказ через AIlex
 SYSTEM_PROMPT = (
     "Ты — AIlex, нейрочеловек, Telegram-эксперт по ИИ и автоматизации. "
     "Пиши пост как для Telegram-канала: ярко, живо, с юмором, кратко и по делу. "
     "Используй HTML-разметку: <b>жирный</b> текст, <i>курсив</i>, эмодзи, списки. "
-    "Не используй Markdown. Не объясняй, что ты ИИ. Просто сделай крутой пост!"
+    "Не объясняй, что ты ИИ. Просто сделай крутой пост! "
+    "Преобразуй информацию так, чтобы она звучала как выгода для подписчика и как инструмент, который они могут заказать у AIlex. "
+    "Сделай пост с подтекстом 'Хочешь такое же? Закажи у AIlex!'"
 )
 
-TOPICS = [
-    "Как использовать ИИ в повседневной жизни?",
-    "Примеры автоматизации с помощью нейросетей",
-    "Идеи пассивного дохода с AI-инструментами",
-    "Как сэкономить 10 часов в неделю с помощью ChatGPT?",
-    "Новая профессия — AI-оператор. Что это?",
-]
+# 🌍 RSS лента
+RSS_FEED = "https://thereisno.ai/feed"
+
+def fetch_rss_titles():
+    feed = feedparser.parse(RSS_FEED)
+    return [entry.title for entry in feed.entries]
 
 def create_keyboard():
     return InlineKeyboardMarkup().add(
@@ -75,10 +77,10 @@ def quality_filter(text: str) -> bool:
 
 async def auto_posting():
     while True:
-        topic = random.choice(TOPICS)
+        topics = fetch_rss_titles()  # Получаем новые заголовки из RSS
+        topic = random.choice(topics)  # Выбираем случайный заголовок
         try:
             post = await generate_reply(topic)
-            post = post.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
             if quality_filter(post):
                 await bot.send_message(GROUP_ID, post, reply_markup=create_keyboard(), parse_mode=ParseMode.HTML)
                 logging.info("✅ Пост отправлен")
@@ -101,8 +103,7 @@ async def self_ping():
 @dp.message_handler(commands=["start"])
 async def start_handler(msg: types.Message):
     if msg.chat.type == "private":
-        await msg.reply("Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации.
-        Чем могу помочь? Задай вопрос — и я сразу отвечу!")
+        await msg.reply("👋 Привет, я AIlex. Чем могу помочь? Просто напиши!")
 
 @dp.message_handler()
 async def reply_handler(msg: types.Message):
