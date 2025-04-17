@@ -9,7 +9,6 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from flask import Flask
 from threading import Thread
 import os
-from telegram import Bot as TelegramBot, ParseMode
 
 # Логирование
 logging.basicConfig(level=logging.INFO)
@@ -19,10 +18,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 GROUP_ID = -1002572659328
 
-# Инициализация бота (aiogram и python-telegram-bot)
-bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)  # Aiogram bot
-telegram_bot = TelegramBot(token=BOT_TOKEN)  # Python-telegram-bot
-
+# Инициализация бота (используется только aiogram)
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")  # Aiogram bot
 dp = Dispatcher(storage=MemoryStorage())
 
 # Flask-приложение для Render self-ping
