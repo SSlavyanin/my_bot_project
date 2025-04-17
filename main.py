@@ -149,11 +149,13 @@ async def handle_message(message: types.Message):
 
 # 🔁 Запуск Flask и бота
 if __name__ == "__main__":
-    def run_flask():
-        app.run(host='0.0.0.0', port=8080)
+    def run_all():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.create_task(self_ping())
+        loop.create_task(auto_posting())
+        executor.start_polling(dp, skip_updates=True)
+
     Thread(target=run_flask).start()
-    loop = asyncio.get_event_loop()
-    loop.create_task(self_ping())
-    loop.create_task(auto_posting())  # ← автоматический старт
-    executor.start_polling(dp, skip_updates=True)
+    Thread(target=run_all).start()
 
