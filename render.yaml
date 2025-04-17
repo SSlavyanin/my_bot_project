@@ -1,6 +1,7 @@
 buildCommand: |
   pip install --upgrade pip
   pip install flask
+  pip install feedparser
   pip install -r requirements.txt
 
 services:
