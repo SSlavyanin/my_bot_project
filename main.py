@@ -78,6 +78,7 @@ async def auto_posting():
         topic = random.choice(TOPICS)
         try:
             post = await generate_reply(topic)
+            post = post.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
             if quality_filter(post):
                 await bot.send_message(GROUP_ID, post, reply_markup=create_keyboard(), parse_mode=ParseMode.HTML)
                 logging.info("✅ Пост отправлен")
