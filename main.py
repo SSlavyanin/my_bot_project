@@ -17,7 +17,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 # 🔧 Настройка
 GROUP_ID = -1002572659328
 OPENAI_BASE_URL = "https://openrouter.ai/api/v1"
-RSS_FEED_URL = "https://thereisno.ai/feed"
+RSS_FEED_URL = "https://habr.com/ru/rss/"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 logging.basicConfig(level=logging.INFO)
