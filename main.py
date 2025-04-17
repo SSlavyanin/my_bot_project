@@ -79,7 +79,7 @@ async def generate_reply(topic: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "X-Title": "AIlex Telegram Bot"
+        "X-Title": "AIlex Telegram Bot",
     }
     payload = {
         "model": "meta-llama/llama-4-maverick:free",
