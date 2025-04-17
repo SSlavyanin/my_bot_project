@@ -3,26 +3,19 @@ import asyncio
 import random
 import httpx
 import feedparser
-from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Bot, ParseMode, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Updater, CallbackContext, MessageHandler, Filters
 from flask import Flask
 from threading import Thread
 import os
 
-# Логирование
 logging.basicConfig(level=logging.INFO)
 
-# Переменные окружения
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 GROUP_ID = -1002572659328
 
-# Инициализация бота
-bot = Bot(token=BOT_TOKEN, parse_mode=types.ParseMode.HTML)
-dp = Dispatcher(bot)
-
-# Flask-приложение для Render self-ping
+bot = Bot(token=BOT_TOKEN)
 app = Flask(__name__)
 
 @app.route('/')
@@ -42,36 +35,31 @@ async def self_ping():
             logging.error(f"Self-ping error: {e}")
         await asyncio.sleep(600)
 
-# Кнопка комментариев
 def create_keyboard():
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💬 Комментарии", url="https://t.me/c/2572659328")]
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 Комментарии", url="https://t.me/c/2572659328")]
     ])
-    return keyboard
 
-# Фильтр качества
 def quality_filter(post: str) -> bool:
     return len(post) > 100 and "ИИ" in post
 
-# Темы из RSS
 topics = []
 
 async def fetch_topics_from_rss():
     global topics
     topics = []
-    feed_urls = [
+    urls = [
         "https://neurohype.tech/rss",
         "https://ain.ua/feed/",
         "https://thereisno.ai/feed"
     ]
-    for url in feed_urls:
+    for url in urls:
         feed = feedparser.parse(url)
         for entry in feed.entries:
             title = entry.get("title", "")
             if any(word in title for word in ["ИИ", "AI", "нейросеть", "автоматизация", "инструмент"]):
                 topics.append(title)
 
-# Генерация поста
 async def generate_reply(topic: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -87,46 +75,54 @@ async def generate_reply(topic: str) -> str:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-            completion = response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
-            return completion.strip()
+            data = response.json()
+            if "choices" in data:
+                return data["choices"][0]["message"]["content"].strip()
+            else:
+                logging.error(f"Ошибка OpenRouter: {data}")
+                return ""
     except Exception as e:
-        logging.error(f"Ошибка OpenRouter: {e}")
+        logging.error(f"Ошибка генерации: {e}")
         return ""
 
-# Автопостинг
 async def auto_posting():
-    global topics
     await fetch_topics_from_rss()
     while True:
         if topics:
             topic = random.choice(topics)
-            try:
-                post = await generate_reply(f"{topic}. Напиши пост от имени AIlex. Упомяни, что он может создать такой инструмент.")
-                if quality_filter(post):
-                    await bot.send_message(GROUP_ID, post, reply_markup=create_keyboard())
-                    logging.info("✅ Пост отправлен")
-                else:
-                    logging.info("❌ Пост не прошёл фильтр")
-            except Exception as e:
-                logging.error(f"Ошибка постинга: {e}")
+            post = await generate_reply(f"{topic}. Напиши пост от имени AIlex. Упомяни, что он может создать такой инструмент.")
+            if quality_filter(post):
+                bot.send_message(GROUP_ID, post, reply_markup=create_keyboard(), parse_mode=ParseMode.HTML)
+                logging.info("✅ Пост отправлен")
+            else:
+                logging.info("❌ Пост не прошёл фильтр")
         else:
             logging.warning("⚠️ Нет тем для постинга.")
         await asyncio.sleep(60 * 60 * 2.5)
 
-# Ответы на комментарии
-@dp.message_handler(content_types=types.ContentType.TEXT)
-async def handle_message(message: types.Message):
-    if message.chat.id == GROUP_ID and message.reply_to_message:
-        prompt = f"Комментарий: {message.text}\nОтветь от имени AIlex — чётко, по делу, как нейрочел."
-        reply = await generate_reply(prompt)
-        if reply:
-            await message.reply(reply)
+def handle_message(update: Update, context: CallbackContext):
+    if update.message and update.message.reply_to_message and update.message.chat.id == GROUP_ID:
+        user_comment = update.message.text
+        prompt = f"Комментарий: {user_comment}\nОтветь от имени AIlex — чётко, по делу, как нейрочел."
 
-# Запуск
-async def on_startup(_):
+        async def process_reply():
+            reply = await generate_reply(prompt)
+            if reply:
+                context.bot.send_message(chat_id=update.message.chat_id, text=reply, reply_to_message_id=update.message.message_id)
+
+        asyncio.create_task(process_reply())
+
+def main():
+    updater = Updater(token=BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+
     Thread(target=run_flask).start()
-    asyncio.create_task(self_ping())
-    asyncio.create_task(auto_posting())
+    loop = asyncio.get_event_loop()
+    loop.create_task(self_ping())
+    loop.create_task(auto_posting())
+    updater.start_polling()
+    updater.idle()
 
-if __name__ == "__main__":
-    executor.start_polling(dp, on_startup=on_startup)
+if __name__ == '__main__':
+    main()
