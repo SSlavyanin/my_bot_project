@@ -127,6 +127,7 @@ async def handle_message(message: types.Message):
 
 # Запуск
 async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
     Thread(target=run_flask).start()
     asyncio.create_task(self_ping())
     asyncio.create_task(auto_posting())
