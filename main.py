@@ -89,11 +89,19 @@ async def generate_reply(topic: str) -> str:
     }
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-            completion = response.json()["choices"][0]["message"]["content"]
-            return completion.strip()
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload
+            )
+            data = response.json()
+            if "choices" in data:
+                return data["choices"][0]["message"]["content"].strip()
+            else:
+                logging.error(f"Ошибка генерации: {data}")
+                return ""
     except Exception as e:
-        logging.error(f"Ошибка генерации: {e}")
+        logging.error(f"Ошибка генерации (исключение): {e}")
         return ""
 
 # Автопостинг
