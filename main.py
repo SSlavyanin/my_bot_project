@@ -5,6 +5,7 @@ import httpx
 import feedparser
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from aiogram.fsm.storage.memory import MemoryStorage
 from flask import Flask
 from threading import Thread
@@ -20,7 +21,8 @@ GROUP_ID = -1002572659328
 
 # Инициализация бота (используется только aiogram)
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")  # Aiogram bot
-dp = Dispatcher(storage=MemoryStorage())
+dp = Dispatcher(bot, storage=MemoryStorage())
+dp.middleware.setup(LoggingMiddleware())
 
 # Flask-приложение для Render self-ping
 app = Flask(__name__)
@@ -115,7 +117,7 @@ async def auto_posting():
         await asyncio.sleep(60 * 60 * 2.5)
 
 # Ответы на комментарии
-@dp.message()
+@dp.message_handler()
 async def handle_message(message: types.Message):
     if message.chat.id == GROUP_ID and message.reply_to_message:
         prompt = f"Комментарий: {message.text}\nОтветь от имени AIlex — чётко, по делу, как нейрочел."
@@ -128,7 +130,7 @@ async def main():
     Thread(target=run_flask).start()
     asyncio.create_task(self_ping())
     asyncio.create_task(auto_posting())
-    await dp.start_polling(bot)
+    await dp.start_polling()
 
 if __name__ == "__main__":
     asyncio.run(main())
