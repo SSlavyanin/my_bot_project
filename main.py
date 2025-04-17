@@ -122,11 +122,18 @@ async def auto_posting():
             logging.error(f"Ошибка при автопостинге: {e}")
         await asyncio.sleep(60 * 60 * 2.5)
 
-# 🚀 Запуск автопостинга сразу
-@dp.message_handler(commands=["start_posts"])
-async def start_posts(message: types.Message):
-    asyncio.create_task(auto_posting())
-    await message.reply("🚀 Автопостинг запущен.")
+# 🤝 Обработка старта с кнопки под постом
+@dp.message_handler(commands=["start"])
+async def handle_start(message: types.Message):
+    args = message.get_args()
+    if args == "from_post":
+        await message.reply(
+            "Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации.\n"
+            "Чем могу помочь? Задай вопрос — и я сразу отвечу!", 
+            parse_mode=ParseMode.HTML
+        )
+    else:
+        await message.reply("Привет! Напиши мне что угодно — я помогу 🤖")
 
 # 💬 Ответы в личке и группах
 @dp.message_handler()
@@ -149,3 +156,4 @@ if __name__ == "__main__":
     loop.create_task(self_ping())
     loop.create_task(auto_posting())  # ← автоматический старт
     executor.start_polling(dp, skip_updates=True)
+
