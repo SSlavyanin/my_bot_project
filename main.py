@@ -4,9 +4,8 @@ import random
 import httpx
 import feedparser
 from aiogram import Bot, Dispatcher, types
-from aiogram.enums import ParseMode
+from aiogram.utils import executor
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.fsm.storage.memory import MemoryStorage
 from flask import Flask
 from threading import Thread
 import os
@@ -20,14 +19,8 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 GROUP_ID = -1002572659328
 
 # Инициализация бота
-from aiogram.client.default import DefaultBotProperties
-
-bot = Bot(
-    token=BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
-)
-
-dp = Dispatcher(storage=MemoryStorage())
+bot = Bot(token=BOT_TOKEN, parse_mode=types.ParseMode.HTML)
+dp = Dispatcher(bot)
 
 # Flask-приложение для Render self-ping
 app = Flask(__name__)
@@ -56,14 +49,13 @@ def create_keyboard():
     ])
     return keyboard
 
-# Фильтр качества (примитивный)
+# Фильтр качества
 def quality_filter(post: str) -> bool:
     return len(post) > 100 and "ИИ" in post
 
-# Глобальный список тем из RSS
+# Темы из RSS
 topics = []
 
-# Получение тем из RSS
 async def fetch_topics_from_rss():
     global topics
     topics = []
@@ -84,7 +76,6 @@ async def generate_reply(topic: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "X-Title": "AIlex Telegram Bot"
     }
     payload = {
         "model": "meta-llama/llama-4-maverick:free",
@@ -96,15 +87,10 @@ async def generate_reply(topic: str) -> str:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-            result = response.json()
-            if "choices" in result:
-                completion = result["choices"][0]["message"]["content"]
-                return completion.strip()
-            else:
-                logging.error(f"Ошибка OpenRouter: {result}")
-                return ""
+            completion = response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+            return completion.strip()
     except Exception as e:
-        logging.error(f"Ошибка генерации: {e}")
+        logging.error(f"Ошибка OpenRouter: {e}")
         return ""
 
 # Автопостинг
@@ -128,7 +114,7 @@ async def auto_posting():
         await asyncio.sleep(60 * 60 * 2.5)
 
 # Ответы на комментарии
-@dp.message()
+@dp.message_handler(content_types=types.ContentType.TEXT)
 async def handle_message(message: types.Message):
     if message.chat.id == GROUP_ID and message.reply_to_message:
         prompt = f"Комментарий: {message.text}\nОтветь от имени AIlex — чётко, по делу, как нейрочел."
@@ -137,12 +123,10 @@ async def handle_message(message: types.Message):
             await message.reply(reply)
 
 # Запуск
-async def main():
+async def on_startup(_):
     Thread(target=run_flask).start()
     asyncio.create_task(self_ping())
     asyncio.create_task(auto_posting())
-    await bot.delete_webhook(drop_pending_updates=True)  # ✅ ДОБАВЛЕНО ДЛЯ ИЗБЕЖАНИЯ КОНФЛИКТОВ
-    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    executor.start_polling(dp, on_startup=on_startup)
