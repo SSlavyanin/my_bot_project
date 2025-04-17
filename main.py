@@ -6,7 +6,6 @@ import feedparser
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from flask import Flask
 from threading import Thread
@@ -21,7 +20,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 GROUP_ID = -1002572659328
 
 # Инициализация бота
-bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher(storage=MemoryStorage())
 
 # Flask-приложение для Render self-ping
@@ -79,7 +78,7 @@ async def generate_reply(topic: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "X-Title": "AIlex Telegram Bot",
+        "X-Title": "AIlex Telegram Bot"
     }
     payload = {
         "model": "meta-llama/llama-4-maverick:free",
@@ -91,8 +90,13 @@ async def generate_reply(topic: str) -> str:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-            completion = response.json()["choices"][0]["message"]["content"]
-            return completion.strip()
+            result = response.json()
+            if "choices" in result:
+                completion = result["choices"][0]["message"]["content"]
+                return completion.strip()
+            else:
+                logging.error(f"Ошибка OpenRouter: {result}")
+                return ""
     except Exception as e:
         logging.error(f"Ошибка генерации: {e}")
         return ""
@@ -131,6 +135,7 @@ async def main():
     Thread(target=run_flask).start()
     asyncio.create_task(self_ping())
     asyncio.create_task(auto_posting())
+    await bot.delete_webhook(drop_pending_updates=True)  # ✅ ДОБАВЛЕНО ДЛЯ ИЗБЕЖАНИЯ КОНФЛИКТОВ
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
