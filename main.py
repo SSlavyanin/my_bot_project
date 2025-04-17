@@ -21,6 +21,10 @@ app = Flask(__name__)
 def home():
     return 'Bot is alive!'
 
+# 🔁 Запуск Flask
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
+
 # 📡 Self-ping
 async def self_ping():
     while True:
@@ -122,19 +126,6 @@ async def auto_posting():
             logging.error(f"Ошибка при автопостинге: {e}")
         await asyncio.sleep(60 * 60 * 2.5)
 
-# 🤝 Обработка старта с кнопки под постом
-@dp.message_handler(commands=["start"])
-async def handle_start(message: types.Message):
-    args = message.get_args()
-    if args == "from_post":
-        await message.reply(
-            "Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации.\n"
-            "Чем могу помочь? Задай вопрос — и я сразу отвечу!", 
-            parse_mode=ParseMode.HTML
-        )
-    else:
-        await message.reply("Привет! Напиши мне что угодно — я помогу 🤖")
-
 # 💬 Ответы в личке и группах
 @dp.message_handler()
 async def handle_message(message: types.Message):
@@ -147,7 +138,7 @@ async def handle_message(message: types.Message):
         reply = await generate_reply(message.text)
         await message.reply(reply, parse_mode=ParseMode.HTML)
 
-# 🔁 Запуск Flask и бота
+# 🚀 Старт проекта
 if __name__ == "__main__":
     def run_all():
         loop = asyncio.new_event_loop()
@@ -158,4 +149,3 @@ if __name__ == "__main__":
 
     Thread(target=run_flask).start()
     Thread(target=run_all).start()
-
