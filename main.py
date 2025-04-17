@@ -5,10 +5,10 @@ import random
 from flask import Flask
 from threading import Thread
 import httpx
+import xml.etree.ElementTree as ET
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ParseMode
 from aiogram.dispatcher.filters import CommandStart
-import xml.etree.ElementTree as ET
 
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -17,13 +17,13 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 # 🔧 Настройка
 GROUP_ID = -1002572659328
 OPENAI_BASE_URL = "https://openrouter.ai/api/v1"
-RSS_FEED_URL = "https://habr.com/ru/rss/"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 logging.basicConfig(level=logging.INFO)
 
 # 🌐 Flask (пинг Render)
 app = Flask(__name__)
+
 @app.route('/')
 def index():
     return "Bot is alive!"
@@ -39,42 +39,22 @@ SYSTEM_PROMPT = (
     "Не используй Markdown. Не объясняй, что ты ИИ. Просто сделай крутой пост!"
 )
 
-def create_keyboard():
-    return InlineKeyboardMarkup().add(
-        InlineKeyboardButton("🤖 Обсудить с AIlex", url="https://t.me/ShilizyakaBot?start=from_post")
-    )
-
-def get_titles_from_rss():
+# Функция для получения заголовков из RSS
+async def get_rss_titles():
+    RSS_FEED_URL = "https://habr.com/ru/rss/"
     try:
-        response = httpx.get(RSS_FEED_URL, timeout=10)
-        if response.status_code != 200:
-            logging.warning(f"⚠️ Не удалось получить RSS. Статус: {response.status_code}")
-            return []
-
-        root = ET.fromstring(response.text)
-        titles = []
-
-        # RSS-формат
-        for item in root.findall(".//item/title"):
-            if item.text:
-                titles.append(item.text.strip())
-
-        # Atom-формат (если RSS не дал заголовков)
-        if not titles:
-            for entry in root.findall(".//{http://www.w3.org/2005/Atom}entry"):
-                title = entry.find("{http://www.w3.org/2005/Atom}title")
-                if title is not None and title.text:
-                    titles.append(title.text.strip())
-
-        if not titles:
-            logging.warning("⚠️ Не удалось найти заголовки в RSS/Atom")
-
-        return titles
-
+        async with httpx.AsyncClient() as client:
+            r = await client.get(RSS_FEED_URL, follow_redirects=True)
+            if r.status_code != 200:
+                logging.warning(f"⚠️ Не удалось получить RSS. Статус: {r.status_code}")
+                return []
+            root = ET.fromstring(r.text)
+            return [item.find("title").text for item in root.findall(".//item") if item.find("title") is not None]
     except Exception as e:
         logging.error(f"Ошибка парсинга RSS: {e}")
         return []
 
+# Генерация ответа
 async def generate_reply(user_message: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -93,32 +73,33 @@ async def generate_reply(user_message: str) -> str:
         data = r.json()
         return data['choices'][0]['message']['content'] if 'choices' in data else "⚠️ Ошибка генерации"
 
+# Фильтр качества
 def quality_filter(text: str) -> bool:
     if len(text.split()) < 20: return False
     if any(x in text.lower() for x in ["извин", "не могу", "как и было сказано"]): return False
     return True
 
+# Автопостинг
 async def auto_posting():
     while True:
-        titles = get_titles_from_rss()
-        if not titles:
-            logging.warning("⚠️ Нет заголовков из RSS")
-            await asyncio.sleep(60 * 60)
-            continue
+        topics = await get_rss_titles()
+        if not topics:
+            logging.warning("⚠️ Нет заголовков из RSS.")
+        else:
+            topic = random.choice(topics)
+            try:
+                post = await generate_reply(topic)
+                post = post.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
+                if quality_filter(post):
+                    await bot.send_message(GROUP_ID, post, parse_mode=ParseMode.HTML)
+                    logging.info("✅ Пост отправлен")
+                else:
+                    logging.info("❌ Пост не прошёл фильтр")
+            except Exception as e:
+                logging.error(f"Ошибка постинга: {e}")
+        await asyncio.sleep(60 * 60 * 2.5)  # каждые 2.5 часа
 
-        topic = random.choice(titles)
-        try:
-            post = await generate_reply(topic)
-            post = post.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
-            if quality_filter(post):
-                await bot.send_message(GROUP_ID, post, reply_markup=create_keyboard(), parse_mode=ParseMode.HTML)
-                logging.info("✅ Пост отправлен")
-            else:
-                logging.info("❌ Пост не прошёл фильтр")
-        except Exception as e:
-            logging.error(f"Ошибка постинга: {e}")
-        await asyncio.sleep(60 * 60 * 2.5)
-
+# Self-ping для Render
 async def self_ping():
     while True:
         try:
@@ -132,7 +113,7 @@ async def self_ping():
 @dp.message_handler(commands=["start"])
 async def start_handler(msg: types.Message):
     if msg.chat.type == "private":
-        await msg.reply("Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации. Чем могу помочь?")
+        await msg.reply("Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации. Чем могу помочь? Задай вопрос — и я сразу отвечу!")
 
 @dp.message_handler()
 async def reply_handler(msg: types.Message):
