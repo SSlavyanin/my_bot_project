@@ -2,13 +2,13 @@ import os
 import logging
 import asyncio
 import random
-import feedparser
 from flask import Flask
 from threading import Thread
 import httpx
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ParseMode
 from aiogram.dispatcher.filters import CommandStart
+import xml.etree.ElementTree as ET
 
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -31,31 +31,49 @@ def index():
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
-# 📰 Получение заголовков из RSS
-def get_titles_from_rss():
-    try:
-        feed = feedparser.parse(RSS_FEED_URL)
-        titles = [entry.title for entry in feed.entries if entry.title]
-        if not titles:
-            logging.warning("⚠️ Нет заголовков из RSS")
-        return titles
-    except Exception as e:
-        logging.error(f"Ошибка чтения RSS: {e}")
-        return []
-
-# 📎 Кнопка под постом
-def create_keyboard():
-    return InlineKeyboardMarkup().add(
-        InlineKeyboardButton("🤖 Обсудить с AIlex", url="https://t.me/ShilizyakaBot?start=from_post")
-    )
-
-# 📤 Генерация поста
+# 💡 Постинг
 SYSTEM_PROMPT = (
     "Ты — AIlex, нейрочеловек, Telegram-эксперт по ИИ и автоматизации. "
     "Пиши пост как для Telegram-канала: ярко, живо, с юмором, кратко и по делу. "
     "Используй HTML-разметку: <b>жирный</b> текст, <i>курсив</i>, эмодзи, списки. "
     "Не используй Markdown. Не объясняй, что ты ИИ. Просто сделай крутой пост!"
 )
+
+def create_keyboard():
+    return InlineKeyboardMarkup().add(
+        InlineKeyboardButton("🤖 Обсудить с AIlex", url="https://t.me/ShilizyakaBot?start=from_post")
+    )
+
+def get_titles_from_rss():
+    try:
+        response = httpx.get(RSS_FEED_URL, timeout=10)
+        if response.status_code != 200:
+            logging.warning(f"⚠️ Не удалось получить RSS. Статус: {response.status_code}")
+            return []
+
+        root = ET.fromstring(response.text)
+        titles = []
+
+        # RSS-формат
+        for item in root.findall(".//item/title"):
+            if item.text:
+                titles.append(item.text.strip())
+
+        # Atom-формат (если RSS не дал заголовков)
+        if not titles:
+            for entry in root.findall(".//{http://www.w3.org/2005/Atom}entry"):
+                title = entry.find("{http://www.w3.org/2005/Atom}title")
+                if title is not None and title.text:
+                    titles.append(title.text.strip())
+
+        if not titles:
+            logging.warning("⚠️ Не удалось найти заголовки в RSS/Atom")
+
+        return titles
+
+    except Exception as e:
+        logging.error(f"Ошибка парсинга RSS: {e}")
+        return []
 
 async def generate_reply(user_message: str) -> str:
     headers = {
@@ -73,24 +91,21 @@ async def generate_reply(user_message: str) -> str:
     async with httpx.AsyncClient() as client:
         r = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
         data = r.json()
-        if "choices" not in data:
-            logging.error(f"Ошибка генерации: {data}")
-            return "⚠️ Ошибка генерации"
-        return data['choices'][0]['message']['content']
+        return data['choices'][0]['message']['content'] if 'choices' in data else "⚠️ Ошибка генерации"
 
-# ✅ Фильтр качества
 def quality_filter(text: str) -> bool:
     if len(text.split()) < 20: return False
     if any(x in text.lower() for x in ["извин", "не могу", "как и было сказано"]): return False
     return True
 
-# 🤖 Автопостинг
 async def auto_posting():
     while True:
         titles = get_titles_from_rss()
         if not titles:
-            await asyncio.sleep(300)
+            logging.warning("⚠️ Нет заголовков из RSS")
+            await asyncio.sleep(60 * 60)
             continue
+
         topic = random.choice(titles)
         try:
             post = await generate_reply(topic)
@@ -104,7 +119,6 @@ async def auto_posting():
             logging.error(f"Ошибка постинга: {e}")
         await asyncio.sleep(60 * 60 * 2.5)
 
-# 🔁 Self-ping
 async def self_ping():
     while True:
         try:
@@ -114,14 +128,11 @@ async def self_ping():
             logging.error(f"Self-ping error: {e}")
         await asyncio.sleep(600)
 
-# 💬 Обработка сообщений
+# 📩 Личка + чат
 @dp.message_handler(commands=["start"])
 async def start_handler(msg: types.Message):
     if msg.chat.type == "private":
-        await msg.reply(
-            "Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации. "
-            "Чем могу помочь? Задай вопрос — и я сразу отвечу!"
-        )
+        await msg.reply("Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации. Чем могу помочь?")
 
 @dp.message_handler()
 async def reply_handler(msg: types.Message):
@@ -134,7 +145,7 @@ async def reply_handler(msg: types.Message):
         response = await generate_reply(msg.text)
         await msg.reply(response, parse_mode=ParseMode.HTML)
 
-# ▶️ Запуск
+# 🔄 Всё вместе
 async def main():
     asyncio.create_task(self_ping())
     asyncio.create_task(auto_posting())
