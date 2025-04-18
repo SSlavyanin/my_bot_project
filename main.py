@@ -39,6 +39,11 @@ SYSTEM_PROMPT = (
     "Не используй Markdown. Не объясняй, что ты ИИ. Просто сделай крутой пост!"
 )
 
+def create_keyboard():
+    return InlineKeyboardMarkup().add(
+        InlineKeyboardButton("🤖 Обсудить с AIlex", url="https://t.me/ShilizyakaBot?start=from_post")
+    )
+
 # Функция для получения заголовков из RSS
 async def get_rss_titles():
     RSS_FEED_URL = "https://habr.com/ru/rss/"
@@ -49,10 +54,14 @@ async def get_rss_titles():
                 logging.warning(f"⚠️ Не удалось получить RSS. Статус: {r.status_code}")
                 return []
             root = ET.fromstring(r.text)
-            return [item.find("title").text for item in root.findall(".//item") if item.find("title") is not None]
+            titles = [item.find("title").text for item in root.findall(".//item") if item.find("title") is not None]
+            if titles:
+                logging.info(f"✅ Получены заголовки RSS: {titles[:5]}...")  # Логируем первые 5 заголовков для проверки
+            return titles
     except Exception as e:
         logging.error(f"Ошибка парсинга RSS: {e}")
         return []
+
 
 # Генерация ответа
 async def generate_reply(user_message: str) -> str:
