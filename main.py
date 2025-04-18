@@ -91,7 +91,7 @@ async def auto_posting():
                 post = await generate_reply(topic)
                 post = post.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
                 if quality_filter(post):
-                    await bot.send_message(GROUP_ID, post, parse_mode=ParseMode.HTML)
+                    await bot.send_message(GROUP_ID, post, reply_markup=create_keyboard(), parse_mode=ParseMode.HTML)
                     logging.info("✅ Пост отправлен")
                 else:
                     logging.info("❌ Пост не прошёл фильтр")
