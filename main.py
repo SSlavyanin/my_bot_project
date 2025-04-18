@@ -56,7 +56,9 @@ async def get_rss_titles():
             root = ET.fromstring(r.text)
             titles = [item.find("title").text for item in root.findall(".//item") if item.find("title") is not None]
             if titles:
-                logging.info(f"✅ Получены заголовки RSS: {titles[:5]}...")  # Логируем первые 5 заголовков для проверки
+                logging.info(f"✅ Получены заголовки RSS: {titles[:5]}...")  # Логируем первые 5 заголовков
+            else:
+                logging.warning("⚠️ Заголовки из RSS не найдены.")
             return titles
     except Exception as e:
         logging.error(f"Ошибка парсинга RSS: {e}")
