@@ -31,6 +31,20 @@ def index():
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
+# 🔁 Темы для генерации постов вручную
+TOPICS = [
+    "Как ИИ меняет фриланс",
+    "Заработок с помощью нейросетей",
+    "Лучшие AI-инструменты апреля",
+    "Как автоматизировать рутину с GPT",
+    "ИИ-контент: быстро, дёшево, качественно"
+]
+
+topic_index = 0
+rss_index = 0
+use_topic = True  # Чередование источников
+
+
 # 💡 Постинг
 SYSTEM_PROMPT = (
     "Ты — AIlex, нейрочеловек, Telegram-эксперт по ИИ и автоматизации. "
@@ -92,23 +106,43 @@ def quality_filter(text: str) -> bool:
 
 # Автопостинг
 async def auto_posting():
+    global topic_index, rss_index, use_topic
     while True:
-        topics = await get_rss_titles()
-        if not topics:
-            logging.warning("⚠️ Нет заголовков из RSS.")
+        topic = None
+
+        if use_topic:
+            if topic_index < len(TOPICS):
+                topic = TOPICS[topic_index]
+                topic_index += 1
+            else:
+                topic_index = 0  # сброс если всё прошли
         else:
-            topic = random.choice(topics)
+            rss_titles = await get_rss_titles()
+            if rss_titles:
+                if rss_index >= len(rss_titles):
+                    rss_index = 0
+                if rss_titles:
+                    topic = rss_titles[rss_index]
+                    rss_index += 1
+
+        use_topic = not use_topic  # переключаем источник
+
+        if topic:
             try:
                 post = await generate_reply(topic)
                 post = post.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
                 if quality_filter(post):
                     await bot.send_message(GROUP_ID, post, reply_markup=create_keyboard(), parse_mode=ParseMode.HTML)
-                    logging.info("✅ Пост отправлен")
+                    logging.info(f"✅ Пост отправлен: {topic}")
                 else:
                     logging.info("❌ Пост не прошёл фильтр")
             except Exception as e:
                 logging.error(f"Ошибка постинга: {e}")
-        await asyncio.sleep(60 * 60 * 2.5)  # каждые 2.5 часа
+        else:
+            logging.warning("⚠️ Нет темы для публикации")
+
+        await asyncio.sleep(60 * 30)  # каждые 30 минут
+
 
 # Self-ping для Render
 async def self_ping():
