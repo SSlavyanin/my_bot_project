@@ -87,7 +87,7 @@ async def generate_reply(user_message: str) -> str:
         data = r.json()
         return data['choices'][0]['message']['content'] if 'choices' in data else "⚠️ Ошибка генерации"
 
-# 🔧 Отправка задачи тулс-боту
+# 🔧 Отправка задачи тулс-боту (обновлено под формат {"result": "..."})
 async def request_tool_from_service(task: str, params: dict) -> str:
     try:
         headers = {
@@ -102,12 +102,13 @@ async def request_tool_from_service(task: str, params: dict) -> str:
         async with httpx.AsyncClient() as client:
             r = await client.post(TOOLS_URL, json=json_data, headers=headers)
             result = r.json()
-            if r.status_code == 200 and "choices" in result:
-                return result["choices"][0]["message"]["content"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
-            return "⚠️ Ошибка тулса"
+            if r.status_code == 200 and "result" in result:
+                return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
+            return "⚠️ Ошибка тулса: нет поля result"
     except Exception as e:
         logging.error(f"Ошибка запроса в тулс: {e}")
         return "⚠️ Не удалось подключиться к тулс-боту"
+
 
 # ✅ Фильтр качества
 def quality_filter(text: str) -> bool:
