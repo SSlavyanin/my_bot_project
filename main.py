@@ -104,6 +104,7 @@ async def request_tool_from_service(task: str, params: dict) -> str:
             r = await client.post(TOOLS_URL, json=json_data, headers=headers)
             result = r.json()
             print("[TOOL RESPONSE]", result)  # <-- эта строка покажет, что вернул тулс
+            logging.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
 
 
             if r.status_code != 200:
