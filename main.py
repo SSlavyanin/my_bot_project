@@ -87,6 +87,7 @@ async def generate_reply(user_message: str) -> str:
         data = r.json()
         return data['choices'][0]['message']['content'] if 'choices' in data else "⚠️ Ошибка генерации"
 
+
 # 🔧 Отправка задачи тулс-боту (обновлено под формат {"result": "..."})
 async def request_tool_from_service(task: str, params: dict) -> str:
     try:
@@ -103,24 +104,29 @@ async def request_tool_from_service(task: str, params: dict) -> str:
             r = await client.post(TOOLS_URL, json=json_data, headers=headers)
             result = r.json()
 
-            # 🔄 Обработка разных форматов ответа от тулса
-            if r.status_code == 200:
-                if result.get("status") == "found":
-                    tools = result.get("tools", [])
-                    tools_list = "\n".join([f"• <b>{t['name']}</b>: {t['description']}" for t in tools])
-                    return f"🔎 Нашёл похожие инструменты:\n{tools_list}\n\n<i>(предложено тулс-ботом)</i>"
+            if r.status_code != 200:
+                return "⚠️ Ошибка тулса: ответ не 200"
 
-                if result.get("status") == "ask":
-                    questions = "\n".join(result.get("questions", []))
-                    return f"❓ Чтобы собрать инструмент, нужны уточнения:\n{questions}"
+            if "result" in result:
+                return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
 
-                if "result" in result:
-                    return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
+            elif result.get("status") == "ask":
+                msg = "❓ Чтобы собрать инструмент, нужны уточнения:\n"
+                for q in result.get("questions", []):
+                    msg += f"{q}\n"
+                return msg
 
-            return "⚠️ Ответ тулса не понятен или пуст."
+            elif result.get("status") == "found":
+                msg = "🔎 Найдены похожие инструменты:\n"
+                for tool in result.get("tools", []):
+                    msg += f"• <b>{tool['name']}</b>: {tool['description']}\n"
+                return msg + "\nХочешь использовать один из них или уточнить задачу?"
+
+            return "⚠️ Неожиданный ответ от тулс-бота"
     except Exception as e:
         logging.error(f"Ошибка запроса в тулс: {e}")
         return "⚠️ Не удалось подключиться к тулс-боту"
+
 
 
 # ✅ Фильтр качества
