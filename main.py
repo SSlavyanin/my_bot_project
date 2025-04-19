@@ -102,9 +102,22 @@ async def request_tool_from_service(task: str, params: dict) -> str:
         async with httpx.AsyncClient() as client:
             r = await client.post(TOOLS_URL, json=json_data, headers=headers)
             result = r.json()
-            if r.status_code == 200 and "result" in result:
-                return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
-            return "⚠️ Ошибка тулса: нет поля result"
+
+            # 🔄 Обработка разных форматов ответа от тулса
+            if r.status_code == 200:
+                if result.get("status") == "found":
+                    tools = result.get("tools", [])
+                    tools_list = "\n".join([f"• <b>{t['name']}</b>: {t['description']}" for t in tools])
+                    return f"🔎 Нашёл похожие инструменты:\n{tools_list}\n\n<i>(предложено тулс-ботом)</i>"
+
+                if result.get("status") == "ask":
+                    questions = "\n".join(result.get("questions", []))
+                    return f"❓ Чтобы собрать инструмент, нужны уточнения:\n{questions}"
+
+                if "result" in result:
+                    return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
+
+            return "⚠️ Ответ тулса не понятен или пуст."
     except Exception as e:
         logging.error(f"Ошибка запроса в тулс: {e}")
         return "⚠️ Не удалось подключиться к тулс-боту"
