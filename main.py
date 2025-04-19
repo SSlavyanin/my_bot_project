@@ -103,6 +103,8 @@ async def request_tool_from_service(task: str, params: dict) -> str:
         async with httpx.AsyncClient() as client:
             r = await client.post(TOOLS_URL, json=json_data, headers=headers)
             result = r.json()
+            print("[TOOL RESPONSE]", result)  # <-- эта строка покажет, что вернул тулс
+
 
             if r.status_code != 200:
                 return "⚠️ Ошибка тулса: ответ не 200"
