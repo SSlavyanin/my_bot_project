@@ -23,6 +23,8 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 logging.basicConfig(level=logging.INFO)
 
+user_sessions = {}
+
 # 🌐 Flask (пинг Render)
 app = Flask(__name__)
 @app.route('/')
@@ -99,9 +101,19 @@ async def request_tool_from_service(task: str, params: dict) -> str:
             "task": task,
             "params": params
         }
+
+       # 👤 Определяем endpoint в зависимости от стадии диалога
+        user_id = params.get("user_id", "anonymous")
+        if user_sessions.get(user_id) == "awaiting_answers":
+            endpoint = "/answer_tool"
+        else:
+            endpoint = "/generate_tool"
+            user_sessions[user_id] = "awaiting_answers"
+
+        
         logging.info(f"[TOOL REQUEST] Отправка в тулс: {task}")
         async with httpx.AsyncClient() as client:
-            r = await client.post(TOOLS_URL, json=json_data, headers=headers)
+            r = await client.post(f"{TOOLS_URL}{endpoint}", json=json_data, headers=headers)
             result = r.json()
             print("[TOOL RESPONSE]", result)  # <-- эта строка покажет, что вернул тулс
             logging.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
@@ -113,6 +125,8 @@ async def request_tool_from_service(task: str, params: dict) -> str:
 
             if "result" in result:
                 logging.info(f"[TOOL RESPONSE] Результат: {result['result']}")
+                if "result" in result:
+                user_sessions.pop(user_id, None)  # сбрасываем сессию
                 return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
 
             elif result.get("status") == "ask":
