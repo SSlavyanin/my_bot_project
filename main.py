@@ -143,7 +143,6 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
         return "⚠️ Не удалось подключиться к тулс-боту"
 
 
-
 # ✅ Фильтр качества
 def quality_filter(text: str) -> bool:
     if len(text.split()) < 20: return False
