@@ -67,7 +67,8 @@ async def get_rss_titles():
                 return []
             root = ET.fromstring(r.text)
             return [item.find("title").text for item in root.findall(".//item") if item.find("title") is not None]
-    except:
+    except Exception as e:
+        logging.error(f"Ошибка при получении RSS: {e}")
         return []
 
 # 🎯 Генерация текста с OpenRouter
@@ -84,11 +85,18 @@ async def generate_reply(user_message: str) -> str:
             {"role": "user", "content": user_message}
         ]
     }
-    async with httpx.AsyncClient() as client:
-        r = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
-        data = r.json()
-        return data['choices'][0]['message']['content'] if 'choices' in data else "⚠️ Ошибка генерации"
-
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
+            data = r.json()
+            if r.status_code == 200 and 'choices' in data:
+                return data['choices'][0]['message']['content']
+            else:
+                logging.error(f"Ошибка генерации: {data}")
+                return "⚠️ Ошибка генерации"
+    except Exception as e:
+        logging.error(f"Ошибка при генерации текста: {e}")
+        return "⚠️ Ошибка генерации"
 
 # 🔧 Отправка задачи тулс-боту (с поддержкой answer_tool и генерации сессий)
 async def request_tool_from_service(task: str, params: dict, user_id: str = "anonymous") -> str:
@@ -117,7 +125,9 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
             result = r.json()
             logging.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
 
+            # Дополнительное логирование тела ответа
             if r.status_code != 200:
+                logging.error(f"Ошибка тулса: Статус {r.status_code}. Ответ: {r.text}")
                 return "⚠️ Ошибка тулса: ответ не 200"
 
             if result.get("status") == "ask":
@@ -134,6 +144,7 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
                 return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
 
             if result.get("status") == "error":
+                logging.error(f"Ошибка тулса: {result.get('message', 'Неизвестная ошибка')}")
                 return "⚠️ Ошибка: " + result.get("message", "Неизвестная ошибка")
 
             return "⚠️ Неожиданный ответ от тулс-бота"
@@ -141,7 +152,6 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
     except Exception as e:
         logging.error(f"Ошибка запроса в тулс: {e}")
         return "⚠️ Не удалось подключиться к тулс-боту"
-
 
 # ✅ Фильтр качества
 def quality_filter(text: str) -> bool:
