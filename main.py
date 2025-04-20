@@ -100,11 +100,10 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
 
         # 👤 Определяем endpoint в зависимости от стадии диалога
         is_followup = user_sessions.get(user_id) == "awaiting_answers"
-        endpoint = "/answer_tool" if is_followup else "/generate_tool"
-        
-        # Если это не followup, запускаем новую сессию
         if not is_followup:
-            user_sessions[user_id] = "awaiting_answers"
+            user_sessions[user_id] = "awaiting_answers"  # ⬅️ ПЕРЕНЕС СЮДА
+
+        endpoint = "/answer_tool" if is_followup else "/generate_tool"
 
         json_data = {
             "task": task,
