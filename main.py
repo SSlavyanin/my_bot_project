@@ -144,25 +144,27 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
         logging.info(f"[TOOL REQUEST] Отправка в тулс: {task} (endpoint: {endpoint})")
         async with httpx.AsyncClient() as client:
             r = await client.post(f"{TOOLS_URL}{endpoint}", json=json_data, headers=headers)
-            logging.info(f"[TOOL RESPONSE] Raw body: {r.text}")
-            result = r.json()
+
+            # Логирование статуса и тела ответа
+            logging.info(f"[TOOL RESPONSE] Статус: {r.status_code}, Тело ответа: {r.text}")
 
             if r.status_code != 200:
-                return f"⚠️ Ошибка тулса: {r.status_code}"
+                return f"⚠️ Ошибка тулса: ответ {r.status_code}"
 
-            # 🔄 Ответ на уточнение
+            result = r.json()
+            logging.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
+
             if result.get("status") == "ask":
-                return result.get("message", "❓ Уточните детали...")
+                return "❓ Чтобы собрать инструмент, нужны уточнения:\n" + "\n".join(result.get("questions", []))
 
-            # 🔍 Найдены похожие
             if result.get("status") == "found":
                 msg = "🔎 Найдены похожие инструменты:\n"
                 for tool in result.get("tools", []):
                     msg += f"• <b>{tool['name']}</b>: {tool['description']}\n"
                 return msg + "\nХочешь использовать один из них или уточнить задачу?"
 
-            # ✅ Готовый результат
             if "result" in result:
+                user_sessions.pop(user_id, None)  # завершили сессию
                 return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
 
             if result.get("status") == "error":
@@ -172,7 +174,8 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
 
     except Exception as e:
         logging.error(f"Ошибка запроса в тулс: {e}")
-        return "⚠️ Не удалось подключиться к тулс-боту"
+        return f"⚠️ Не удалось подключиться к тулс-боту: {str(e)}"
+
 
 # ✅ Фильтр качества
 def quality_filter(text: str) -> bool:
