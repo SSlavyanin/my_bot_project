@@ -125,9 +125,10 @@ async def request_tool_from_service(task: str, params: dict) -> str:
 
             if "result" in result:
                 logging.info(f"[TOOL RESPONSE] Результат: {result['result']}")
+                
                 if "result" in result:
-                user_sessions.pop(user_id, None)  # сбрасываем сессию
-                return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
+                    user_sessions.pop(user_id, None)  # сбрасываем сессию
+                    return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
 
             elif result.get("status") == "ask":
                 msg = "❓ Чтобы собрать инструмент, нужны уточнения:\n"
