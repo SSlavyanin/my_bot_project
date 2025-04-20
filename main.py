@@ -24,6 +24,7 @@ dp = Dispatcher(bot)
 logging.basicConfig(level=logging.INFO)
 
 user_sessions = {}
+sessions = {}
 
 # 🌐 Flask (пинг Render)
 app = Flask(__name__)
