@@ -98,7 +98,8 @@ async def generate_reply(user_message: str) -> str:
         logging.error(f"Ошибка при генерации текста: {e}")
         return "⚠️ Ошибка генерации"
 
-# 🔧 Отправка задачи тулс-боту (с поддержкой answer_tool и генерации сессий)
+
+# 🔧 Отправка задачи тулс-боту (AIlex не ведёт сессии, просто пересылает сообщения)
 async def request_tool_from_service(task: str, params: dict, user_id: str = "anonymous") -> str:
     try:
         headers = {
@@ -106,12 +107,7 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
             "Ailex-Shared-Secret": AILEX_SHARED_SECRET
         }
 
-        # 👤 Определяем endpoint в зависимости от стадии диалога
-        is_followup = user_sessions.get(user_id) == "awaiting_answers"
-        if not is_followup:
-            user_sessions[user_id] = "awaiting_answers"  # ⬅️ ПЕРЕНЕС СЮДА
-
-        endpoint = "/answer_tool" if is_followup else "/generate_tool"
+        endpoint = "/answer_tool" if params else "/generate_tool"
 
         json_data = {
             "task": task,
@@ -122,29 +118,28 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
         logging.info(f"[TOOL REQUEST] Отправка в тулс: {task} (endpoint: {endpoint})")
         async with httpx.AsyncClient() as client:
             r = await client.post(f"{TOOLS_URL}{endpoint}", json=json_data, headers=headers)
+            logging.info(f"[TOOL RESPONSE] Raw body: {r.text}")
             result = r.json()
-            logging.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
 
-            # Дополнительное логирование тела ответа
             if r.status_code != 200:
-                logging.error(f"Ошибка тулса: Статус {r.status_code}. Ответ: {r.text}")
-                return "⚠️ Ошибка тулса: ответ не 200"
+                return f"⚠️ Ошибка тулса: {r.status_code}"
 
+            # 🔄 Ответ на уточнение
             if result.get("status") == "ask":
-                return "❓ Чтобы собрать инструмент, нужны уточнения:\n" + "\n".join(result.get("questions", []))
+                return result.get("message", "❓ Уточните детали...")
 
+            # 🔍 Найдены похожие
             if result.get("status") == "found":
                 msg = "🔎 Найдены похожие инструменты:\n"
                 for tool in result.get("tools", []):
                     msg += f"• <b>{tool['name']}</b>: {tool['description']}\n"
                 return msg + "\nХочешь использовать один из них или уточнить задачу?"
 
+            # ✅ Готовый результат
             if "result" in result:
-                user_sessions.pop(user_id, None)  # завершили сессию
                 return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
 
             if result.get("status") == "error":
-                logging.error(f"Ошибка тулса: {result.get('message', 'Неизвестная ошибка')}")
                 return "⚠️ Ошибка: " + result.get("message", "Неизвестная ошибка")
 
             return "⚠️ Неожиданный ответ от тулс-бота"
@@ -205,6 +200,7 @@ async def start_handler(msg: types.Message):
     if msg.chat.type == "private":
         await msg.reply("Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации. Чем могу помочь?")
 
+# 📩 Обработка сообщений
 @dp.message_handler()
 async def reply_handler(msg: types.Message):
     if msg.chat.type in ["group", "supergroup"]:
@@ -216,7 +212,7 @@ async def reply_handler(msg: types.Message):
         user_text = msg.text.strip().lower()
 
         # 🔍 Проверка: это запрос на инструмент?
-        if any(x in user_text for x in ["сделай", "инструмент", "генератор", "бот", "утилита"]):
+        if any(x in user_text for x in ["сделай", "инструмент", "генератор", "бот", "утилита"]) or msg.from_user.id:
             response = await request_tool_from_service(task=user_text, params={}, user_id=str(msg.from_user.id))
         else:
             response = await generate_reply(msg.text)
