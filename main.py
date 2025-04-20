@@ -108,21 +108,25 @@ async def request_tool_from_service(task: str, params: dict) -> str:
 
 
             if r.status_code != 200:
+                logging.error(f"[TOOL RESPONSE] Ошибка тулса: ответ не 200. Статус: {r.status_code}")
                 return "⚠️ Ошибка тулса: ответ не 200"
 
             if "result" in result:
+                logging.info(f"[TOOL RESPONSE] Результат: {result['result']}")
                 return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
 
             elif result.get("status") == "ask":
                 msg = "❓ Чтобы собрать инструмент, нужны уточнения:\n"
                 for q in result.get("questions", []):
                     msg += f"{q}\n"
+                logging.info(f"[TOOL RESPONSE] Уточняющие вопросы: {msg}")
                 return msg
 
             elif result.get("status") == "found":
                 msg = "🔎 Найдены похожие инструменты:\n"
                 for tool in result.get("tools", []):
                     msg += f"• <b>{tool['name']}</b>: {tool['description']}\n"
+                logging.warning(f"[TOOL RESPONSE] Ответ от тулса не содержит 'result' или 'status': {result}")
                 return msg + "\nХочешь использовать один из них или уточнить задачу?"
 
             return "⚠️ Неожиданный ответ от тулс-бота"
