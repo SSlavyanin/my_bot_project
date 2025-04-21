@@ -196,6 +196,8 @@ async def reply_handler(msg: types.Message):
         # 👀 Признаки запроса на инструмент
         if any(x in user_text for x in ["сделай", "инструмент", "генератор", "бот", "утилита"]):
             response = await request_tool_from_service(task=user_text, params={}, message=msg)
+            # Логируем ответ
+            print(f"[AILEX] Ответ для {msg.from_user.id}: {response[:100]}")
         else:
             response = await generate_reply(msg.text)
 
