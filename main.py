@@ -120,11 +120,14 @@ async def request_tool_from_service(task: str, params: dict, message: types.Mess
             logging.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
 
             if result.get("status") == "ask":
+                logging.error(f"⚠️Ошибка = ask: {e}")
                 return f"❓ {result.get('message')}"
             elif result.get("status") == "found":
                 tools = "\n".join([f"• <b>{tool['name']}</b>: {tool['description']}" for tool in result.get("tools", [])])
+                logging.error(f"⚠️Ошибка = found: {e}")
                 return f"🔎 Найдены похожие инструменты:\n{tools}\n\nХотите использовать один из них?"
             elif "result" in result:
+                logging.error(f"⚠️Ошибка result in return: {e}")
                 return f"{result['result']} \n\n<i>(сгенерировано тулс-ботом)</i>"
             else:
                 return "⚠️ Неизвестный ответ от тулс-бота"
