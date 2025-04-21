@@ -123,7 +123,7 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
                 )
                 response.raise_for_status()
                 result = response.json()
-                logger.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
+                logging.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
         
                 # 💾 Если ожидается следующий шаг — сохраняем фазу
                 if result.get("status") == "ask":
@@ -131,7 +131,7 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
         
                 await message.answer(result.get("message", "✅ Готово."))
             except Exception as e:
-                logger.error(f"Ошибка запроса в тулс: {e}")
+                logging.error(f"Ошибка запроса в тулс: {e}")
                 await message.answer("❌ Ошибка соединения с тулсом.")
 
 
