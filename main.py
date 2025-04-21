@@ -117,6 +117,23 @@ async def request_tool_from_service(task: str, params: dict, message: types.Mess
             endpoint = "/generate_tool"
         
         # 🛰️ Отправляем в тулс-бот
+        # 🔧 Отправка задачи тулс-боту (AIlex не ведёт сессии, просто пересылает сообщения)
+async def request_tool_from_service(task: str, params: dict, message: types.Message) -> str:
+    user_id = str(message.from_user.id)
+    
+    try:
+        headers = {
+            "Content-Type": "application/json",
+            "Ailex-Shared-Secret": AILEX_SHARED_SECRET
+        }
+
+        # 🔁 Определяем endpoint тулса
+        if sessions.get(user_id, {}).get("phase") == "answer_tool":
+            endpoint = "/answer_tool"
+        else:
+            endpoint = "/generate_tool"
+        
+        # 🛰️ Отправляем в тулс-бот
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
@@ -129,9 +146,12 @@ async def request_tool_from_service(task: str, params: dict, message: types.Mess
         
                 # 💾 Если ожидается следующий шаг — сохраняем фазу
                 if result.get("status") == "ask":
-                    sessions[user_id] = {"phase": "answer_tool"}
+                    sessions[user_id] = {"phase": "answer_tool", "step": 1}
+                    questions = result.get("message", "")
+                    await message.answer(questions)  # Отправляем пользователю уточняющий вопрос
         
-                await message.answer(result.get("message", "✅ Готово."))
+                else:
+                    await message.answer(result.get("message", "✅ Готово."))
             except Exception as e:
                 logging.error(f"Ошибка запроса в тулс: {e}")
                 await message.answer("❌ Ошибка соединения с тулсом.")
