@@ -16,17 +16,14 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 TOOLS_URL = os.getenv("TOOLS_URL")
 AILEX_SHARED_SECRET = os.getenv("AILEX_SHARED_SECRET")
 
-# 🔧 Настройка
+# 📍 ID Telegram-группы для автопостинга
 GROUP_ID = -1002572659328
 OPENAI_BASE_URL = "https://openrouter.ai/api/v1"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 logging.basicConfig(level=logging.INFO)
 
-user_sessions = {}
-sessions = {}
-
-# 🌐 Flask (пинг Render)
+# 🌐 Flask-приложение для пинга Render
 app = Flask(__name__)
 @app.route('/')
 def index():
@@ -34,7 +31,7 @@ def index():
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
-# 🔁 Темы для генерации постов вручную
+# 📚 Темы для автогенерации постов
 TOPICS = [
     "Как ИИ меняет фриланс",
     "Заработок с помощью нейросетей",
@@ -44,21 +41,23 @@ TOPICS = [
 ]
 topic_index = 0
 rss_index = 0
-use_topic = True  # Чередование источников
+use_topic = True  # Флаг для чередования тем и RSS
 
-# 💡 Постинг
+# 📌 Системная инструкция для генерации постов
 SYSTEM_PROMPT = (
     "Ты — AIlex, нейрочеловек, Telegram-эксперт по ИИ и автоматизации. "
     "Пиши пост как для Telegram-канала: ярко, живо, с юмором, кратко и по делу. "
     "Используй HTML-разметку: <b>жирный</b> текст, <i>курсив</i>, эмодзи, списки. "
     "Не используй Markdown. Не объясняй, что ты ИИ. Просто сделай крутой пост!"
 )
+
+# 🔘 Кнопка под постами
 def create_keyboard():
     return InlineKeyboardMarkup().add(
         InlineKeyboardButton("🤖 Обсудить с AIlex", url="https://t.me/ShilizyakaBot?start=from_post")
     )
 
-# 📡 Получение заголовков из RSS
+# 📡 Получение заголовков из RSS (например, habr.com)
 async def get_rss_titles():
     RSS_FEED_URL = "https://habr.com/ru/rss/"
     try:
@@ -72,7 +71,7 @@ async def get_rss_titles():
         logging.error(f"Ошибка при получении RSS: {e}")
         return []
 
-# 🎯 Генерация текста с OpenRouter
+# 🤖 Генерация текста через OpenRouter API
 async def generate_reply(user_message: str) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -99,30 +98,25 @@ async def generate_reply(user_message: str) -> str:
         logging.error(f"Ошибка при генерации текста: {e}")
         return "⚠️ Ошибка генерации"
 
-
-# 🔧 Отправка задачи тулс-боту (AIlex не ведёт сессии, просто пересылает сообщения)
+# 🧰 Запрос к тулс-боту на генерацию инструмента
 async def request_tool_from_service(task: str, params: dict, message: types.Message) -> str:
     user_id = str(message.from_user.id)
-    
     try:
         headers = {
             "Content-Type": "application/json",
             "Ailex-Shared-Secret": AILEX_SHARED_SECRET
         }
-
-        # 🛰️ Отправляем запрос в тулс-бот без учета сессии AIlex
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{TOOLS_URL}/generate_tool",  # или /answer_tool, если это этап ответа
-                json={"user_id": user_id, "task": task, "params": params}
+                f"{TOOLS_URL}/generate_tool",
+                json={"user_id": user_id, "task": task, "params": params},
+                headers=headers
             )
             response.raise_for_status()
             result = response.json()
             logging.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
 
-            # Ответ от тулс-бота
             if result.get("status") == "ask":
-                # Отправляем уточняющий вопрос
                 return f"❓ {result.get('message')}"
             elif result.get("status") == "found":
                 tools = "\n".join([f"• <b>{tool['name']}</b>: {tool['description']}" for tool in result.get("tools", [])])
@@ -131,19 +125,17 @@ async def request_tool_from_service(task: str, params: dict, message: types.Mess
                 return f"{result['result']} \n\n<i>(сгенерировано тулс-ботом)</i>"
             else:
                 return "⚠️ Неизвестный ответ от тулс-бота"
-
     except Exception as e:
         logging.error(f"Ошибка запроса в тулс: {e}")
         return f"⚠️ Не удалось подключиться к тулс-боту: {str(e)}"
 
-
-# ✅ Фильтр качества
+# ✅ Проверка качества текста (перед публикацией)
 def quality_filter(text: str) -> bool:
     if len(text.split()) < 20: return False
     if any(x in text.lower() for x in ["извин", "не могу", "как и было сказано"]): return False
     return True
 
-# 📝 Автопостинг
+# 📬 Автоматическая генерация и постинг в Telegram-группу
 async def auto_posting():
     global topic_index, rss_index, use_topic
     while True:
@@ -162,6 +154,7 @@ async def auto_posting():
                 topic = rss_titles[rss_index]
                 rss_index += 1
         use_topic = not use_topic
+
         if topic:
             try:
                 post = await generate_reply(topic)
@@ -173,7 +166,7 @@ async def auto_posting():
                 logging.error(f"Ошибка постинга: {e}")
         await asyncio.sleep(60 * 30)
 
-# 🔁 Self-ping
+# 🔁 Self-ping Render для предотвращения сна
 async def self_ping():
     while True:
         try:
@@ -183,13 +176,13 @@ async def self_ping():
             logging.error(f"Self-ping error: {e}")
         await asyncio.sleep(600)
 
-# 📨 Хэндлеры
+# 🧾 Команда /start
 @dp.message_handler(commands=["start"])
 async def start_handler(msg: types.Message):
     if msg.chat.type == "private":
         await msg.reply("Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации. Чем могу помочь?")
 
-# 📩 Обработка сообщений
+# 📥 Обработка всех сообщений
 @dp.message_handler()
 async def reply_handler(msg: types.Message):
     if msg.chat.type in ["group", "supergroup"]:
@@ -200,16 +193,15 @@ async def reply_handler(msg: types.Message):
     else:
         user_text = msg.text.strip().lower()
 
-        # 🔍 Проверка: это запрос на инструмент?
-        if any(x in user_text for x in ["сделай", "инструмент", "генератор", "бот", "утилита"]) or msg.from_user.id:
-            response = await request_tool_from_service(task=user_text, params={}, message=msg)  # Передаем message вместо user_id
+        # 👀 Признаки запроса на инструмент
+        if any(x in user_text for x in ["сделай", "инструмент", "генератор", "бот", "утилита"]):
+            response = await request_tool_from_service(task=user_text, params={}, message=msg)
         else:
             response = await generate_reply(msg.text)
 
         await msg.reply(response, parse_mode=ParseMode.HTML)
 
-
-# 🚀 Старт
+# 🚀 Запуск
 async def main():
     asyncio.create_task(self_ping())
     asyncio.create_task(auto_posting())
