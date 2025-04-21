@@ -208,10 +208,16 @@ async def reply_handler(msg: types.Message):
 
 # 🚀 Запуск
 async def main():
+    # Запуск фоновых задач
     asyncio.create_task(self_ping())
     asyncio.create_task(auto_posting())
+
+    # Запуск start_polling только один раз в основном потоке
     await dp.start_polling()
 
 if __name__ == "__main__":
+    # Запускаем Flask в отдельном потоке
     Thread(target=run_flask).start()
+    # Запуск основной асинхронной задачи, которая запускает polling
     asyncio.run(main())
+
