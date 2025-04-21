@@ -71,8 +71,32 @@ async def get_rss_titles():
         logging.error(f"Ошибка при получении RSS: {e}")
         return []
 
+# 🛠️ Делегирование запроса тулс-боту
+async def handle_tool_request(message: types.Message):
+    user_id = str(message.from_user.id)
+    headers = {
+        "Content-Type": "application/json",
+        "Ailex-Shared-Secret": AILEX_SHARED_SECRET
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{TOOLS_URL}/generate_tool",
+                json={"user_id": user_id, "message": message.text},
+                headers=headers
+            )
+            response.raise_for_status()
+            data = response.json()
+            status = data.get("status")
+            msg = data.get("message", "⚠️ Нет ответа от тулс-бота.")
+            await message.answer(f"<b>📦 Ответ от тулс-бота:</b>\n{msg}", parse_mode="HTML")
+    except Exception as e:
+        logging.error(f"Ошибка при обращении к тулс-боту: {e}")
+        await message.answer("⚠️ Ошибка при обращении к тулс-боту.")
+
+
 # 🤖 Генерация текста через OpenRouter API
-async def generate_reply(user_message: str) -> str:
+async def generate_reply(user_message: str, message: types.Message) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
@@ -93,6 +117,11 @@ async def generate_reply(user_message: str) -> str:
                 response = data['choices'][0]['message']['content']
                 # Обработка HTML-разметки
                 response = response.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
+                
+                if "передаю вас тулс-боту" in response.lower():
+                    # from tool_utils import handle_tool_request  # Убедись, что путь правильный
+                    return await handle_tool_request(message)
+
                 return response
             else:
                 logging.error(f"Ошибка генерации: {data}")
@@ -101,37 +130,6 @@ async def generate_reply(user_message: str) -> str:
         logging.error(f"Ошибка при генерации текста: {e}")
         return "⚠️ Ошибка генерации"
 
-# 🧰 Запрос к тулс-боту на генерацию инструмента
-async def request_tool_from_service(task: str, params: dict, message: types.Message) -> str:
-    user_id = str(message.from_user.id)
-    try:
-        headers = {
-            "Content-Type": "application/json",
-            "Ailex-Shared-Secret": AILEX_SHARED_SECRET
-        }
-        logging.info(f"[AILEX ➜ TOOLS] Отправка: user_id={user_id}, task={task}, params={params}")
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{TOOLS_URL}/generate_tool",
-                json={"user_id": user_id, "task": task, "params": params},
-                headers=headers
-            )
-            response.raise_for_status()
-            result = response.json()
-            logging.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
-
-            if result.get("status") == "ask":
-                return f"❓ {result.get('message')}"
-            elif result.get("status") == "found":
-                tools = "\n".join([f"• <b>{tool['name']}</b>: {tool['description']}" for tool in result.get("tools", [])])
-                return f"🔎 Найдены похожие инструменты:\n{tools}\n\nХотите использовать один из них?"
-            elif "result" in result:
-                return f"{result['result']} \n\n<i>(сгенерировано тулс-ботом)</i>"
-            else:
-                return "⚠️ Неизвестный ответ от тулс-бота"
-    except Exception as e:
-        logging.error(f"Ошибка запроса в тулс: {e}")
-        return f"⚠️ Не удалось подключиться к тулс-боту: {str(e)}"
 
 # ✅ Проверка качества текста (перед публикацией)
 def quality_filter(text: str) -> bool:
@@ -179,6 +177,14 @@ async def self_ping():
         except Exception as e:
             logging.error(f"Self-ping error: {e}")
         await asyncio.sleep(600)
+        
+# Передача message внутрь generate_reply
+@dp.message()
+async def handle_message(message: types.Message):
+    user_message = message.text
+    reply = await generate_reply(user_message, message)
+    await message.answer(reply, parse_mode="HTML")
+    
 
 # 🧾 Команда /start
 @dp.message_handler(commands=["start"])
