@@ -197,10 +197,11 @@ async def reply_handler(msg: types.Message):
             response = await generate_reply(cleaned)
             await msg.reply(response, parse_mode=ParseMode.HTML)
     else:
-        user_text = msg.text.strip().lower()
+        user_text = msg.text.strip()
+        user_text_lower = user_text.lower()
 
         # 👀 Признаки запроса на инструмент
-        if any(x in user_text for x in ["сделай", "инструмент", "генератор", "бот", "утилита"]):
+        if any(x in user_text_lower for x in ["сделай", "инструмент", "генератор", "бот", "утилита"]):
             response = await request_tool_from_service(task=user_text, params={}, message=msg)
             # Логируем ответ
             print(f"[AILEX] Ответ для {msg.from_user.id}: {response[:100]}")
