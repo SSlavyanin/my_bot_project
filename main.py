@@ -8,7 +8,6 @@ import httpx
 import xml.etree.ElementTree as ET
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ParseMode
-from aiogram.dispatcher.filters import CommandStart
 
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -19,11 +18,13 @@ AILEX_SHARED_SECRET = os.getenv("AILEX_SHARED_SECRET")
 # 📍 ID Telegram-группы для автопостинга
 GROUP_ID = -1002572659328
 OPENAI_BASE_URL = "https://openrouter.ai/api/v1"
+
+# 🧠 Базовая настройка aiogram и логгирования
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 logging.basicConfig(level=logging.INFO)
 
-# 🌐 Flask-приложение для пинга Render
+# 🌐 Flask-приложение для Render
 app = Flask(__name__)
 @app.route('/')
 def index():
@@ -31,7 +32,7 @@ def index():
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
 
-# 📚 Темы для автогенерации постов
+# 📚 Темы для генерации контента
 TOPICS = [
     "Как ИИ меняет фриланс",
     "Заработок с помощью нейросетей",
@@ -41,9 +42,9 @@ TOPICS = [
 ]
 topic_index = 0
 rss_index = 0
-use_topic = True  # Флаг для чередования тем и RSS
+use_topic = True
 
-# 📌 Системная инструкция для генерации постов
+# 📌 Системный промпт
 SYSTEM_PROMPT = (
     "Ты — AIlex, нейрочеловек, Telegram-эксперт по ИИ и автоматизации. "
     "Пиши пост как для Telegram-канала: ярко, живо, с юмором, кратко и по делу. "
@@ -57,7 +58,7 @@ def create_keyboard():
         InlineKeyboardButton("🤖 Обсудить с AIlex", url="https://t.me/ShilizyakaBot?start=from_post")
     )
 
-# 📡 Получение заголовков из RSS (например, habr.com)
+# 📡 Получение заголовков из RSS
 async def get_rss_titles():
     RSS_FEED_URL = "https://habr.com/ru/rss/"
     try:
@@ -71,7 +72,7 @@ async def get_rss_titles():
         logging.error(f"Ошибка при получении RSS: {e}")
         return []
 
-# 🛠️ Делегирование запроса тулс-боту
+# 🛠️ Делегирование задачи тулс-боту
 async def handle_tool_request(message: types.Message):
     user_id = str(message.from_user.id)
     headers = {
@@ -94,8 +95,7 @@ async def handle_tool_request(message: types.Message):
         logging.error(f"Ошибка при обращении к тулс-боту: {e}")
         await message.answer("⚠️ Ошибка при обращении к тулс-боту.")
 
-
-# 🤖 Генерация текста через OpenRouter API
+# 🤖 Генерация ответа через OpenRouter
 async def generate_reply(user_message: str, message: types.Message) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -115,13 +115,10 @@ async def generate_reply(user_message: str, message: types.Message) -> str:
             data = r.json()
             if r.status_code == 200 and 'choices' in data:
                 response = data['choices'][0]['message']['content']
-                # Обработка HTML-разметки
                 response = response.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
-                
                 if "передаю вас тулс-боту" in response.lower():
-                    # from tool_utils import handle_tool_request  # Убедись, что путь правильный
-                    return await handle_tool_request(message)
-
+                    await handle_tool_request(message)
+                    return "🔄 Запрос передан тулс-боту."
                 return response
             else:
                 logging.error(f"Ошибка генерации: {data}")
@@ -130,37 +127,30 @@ async def generate_reply(user_message: str, message: types.Message) -> str:
         logging.error(f"Ошибка при генерации текста: {e}")
         return "⚠️ Ошибка генерации"
 
-
-# ✅ Проверка качества текста (перед публикацией)
+# ✅ Проверка качества текста
 def quality_filter(text: str) -> bool:
     if len(text.split()) < 20: return False
     if any(x in text.lower() for x in ["извин", "не могу", "как и было сказано"]): return False
     return True
 
-# 📬 Автоматическая генерация и постинг в Telegram-группу
+# 📬 Постинг в группу каждые 30 минут
 async def auto_posting():
     global topic_index, rss_index, use_topic
     while True:
         topic = None
         if use_topic:
-            if topic_index < len(TOPICS):
-                topic = TOPICS[topic_index]
-                topic_index += 1
-            else:
-                topic_index = 0
+            topic = TOPICS[topic_index % len(TOPICS)]
+            topic_index += 1
         else:
             rss_titles = await get_rss_titles()
             if rss_titles:
-                if rss_index >= len(rss_titles):
-                    rss_index = 0
-                topic = rss_titles[rss_index]
+                topic = rss_titles[rss_index % len(rss_titles)]
                 rss_index += 1
         use_topic = not use_topic
 
         if topic:
             try:
-                post = await generate_reply(topic)
-                post = post.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
+                post = await generate_reply(topic, message=types.Message(from_user=types.User(id=0, is_bot=False)))
                 if quality_filter(post):
                     await bot.send_message(GROUP_ID, post, reply_markup=create_keyboard(), parse_mode=ParseMode.HTML)
                     logging.info(f"✅ Пост отправлен: {topic}")
@@ -168,7 +158,7 @@ async def auto_posting():
                 logging.error(f"Ошибка постинга: {e}")
         await asyncio.sleep(60 * 30)
 
-# 🔁 Self-ping Render для предотвращения сна
+# 🔁 Self-ping для Render
 async def self_ping():
     while True:
         try:
@@ -177,55 +167,38 @@ async def self_ping():
         except Exception as e:
             logging.error(f"Self-ping error: {e}")
         await asyncio.sleep(600)
-        
-# Передача message внутрь generate_reply
-@dp.message()
-async def handle_message(message: types.Message):
-    user_message = message.text
-    reply = await generate_reply(user_message, message)
-    await message.answer(reply, parse_mode="HTML")
-    
 
-# 🧾 Команда /start
+# 🧾 /start
 @dp.message_handler(commands=["start"])
 async def start_handler(msg: types.Message):
     if msg.chat.type == "private":
         await msg.reply("Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации. Чем могу помочь?")
 
-# 📥 Обработка всех сообщений
+# 📥 Обработка всех входящих сообщений
 @dp.message_handler()
 async def reply_handler(msg: types.Message):
     if msg.chat.type in ["group", "supergroup"]:
         if f"@{(await bot.get_me()).username}" in msg.text:
             cleaned = msg.text.replace(f"@{(await bot.get_me()).username}", "").strip()
-            response = await generate_reply(cleaned)
+            response = await generate_reply(cleaned, message=msg)
             await msg.reply(response, parse_mode=ParseMode.HTML)
     else:
         user_text = msg.text.strip()
         user_text_lower = user_text.lower()
 
-        # 👀 Признаки запроса на инструмент
         if any(x in user_text_lower for x in ["сделай", "инструмент", "генератор", "бот", "утилита"]):
-            response = await request_tool_from_service(task=user_text, params={}, message=msg)
-            # Логируем ответ
-            print(f"[AILEX] Ответ для {msg.from_user.id}: {response[:100]}")
+            response = await handle_tool_request(msg)
+            return  # Ответ уже отправлен тулс-ботом
         else:
-            response = await generate_reply(msg.text)
+            response = await generate_reply(msg.text, message=msg)
+            await msg.reply(response, parse_mode=ParseMode.HTML)
 
-        await msg.reply(response, parse_mode=ParseMode.HTML)
-
-# 🚀 Запуск
+# 🚀 Главная точка входа
 async def main():
-    # Запуск фоновых задач
     asyncio.create_task(self_ping())
     asyncio.create_task(auto_posting())
-
-    # Запуск start_polling только один раз в основном потоке
     await dp.start_polling()
 
 if __name__ == "__main__":
-    # Запускаем Flask в отдельном потоке
     Thread(target=run_flask).start()
-    # Запуск основной асинхронной задачи, которая запускает polling
     asyncio.run(main())
-
