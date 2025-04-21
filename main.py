@@ -101,7 +101,9 @@ async def generate_reply(user_message: str) -> str:
 
 
 # 🔧 Отправка задачи тулс-боту (AIlex не ведёт сессии, просто пересылает сообщения)
-async def request_tool_from_service(task: str, params: dict, user_id: str = "anonymous") -> str:
+async def request_tool_from_service(task: str, params: dict, message: types.Message) -> str:
+    user_id = str(message.from_user.id)  # Получаем user_id из сообщения
+
     try:
         headers = {
             "Content-Type": "application/json",
@@ -133,7 +135,6 @@ async def request_tool_from_service(task: str, params: dict, user_id: str = "ano
             except Exception as e:
                 logging.error(f"Ошибка запроса в тулс: {e}")
                 await message.answer("❌ Ошибка соединения с тулсом.")
-
 
         json_data = {
             "task": task,
