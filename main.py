@@ -102,23 +102,6 @@ async def generate_reply(user_message: str) -> str:
 
 # 🔧 Отправка задачи тулс-боту (AIlex не ведёт сессии, просто пересылает сообщения)
 async def request_tool_from_service(task: str, params: dict, message: types.Message) -> str:
-    user_id = str(message.from_user.id)  # Получаем user_id из сообщения
-
-    try:
-        headers = {
-            "Content-Type": "application/json",
-            "Ailex-Shared-Secret": AILEX_SHARED_SECRET
-        }
-
-        # 🔁 Определяем endpoint тулса
-        if sessions.get(user_id, {}).get("phase") == "answer_tool":
-            endpoint = "/answer_tool"
-        else:
-            endpoint = "/generate_tool"
-        
-        # 🛰️ Отправляем в тулс-бот
-        # 🔧 Отправка задачи тулс-боту (AIlex не ведёт сессии, просто пересылает сообщения)
-async def request_tool_from_service(task: str, params: dict, message: types.Message) -> str:
     user_id = str(message.from_user.id)
     
     try:
@@ -127,71 +110,27 @@ async def request_tool_from_service(task: str, params: dict, message: types.Mess
             "Ailex-Shared-Secret": AILEX_SHARED_SECRET
         }
 
-        # 🔁 Определяем endpoint тулса
-        if sessions.get(user_id, {}).get("phase") == "answer_tool":
-            endpoint = "/answer_tool"
-        else:
-            endpoint = "/generate_tool"
-        
-        # 🛰️ Отправляем в тулс-бот
+        # 🛰️ Отправляем запрос в тулс-бот без учета сессии AIlex
         async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(
-                    f"{TOOLS_URL}{endpoint}",
-                    json={"user_id": user_id, "answer": message.text}
-                )
-                response.raise_for_status()
-                result = response.json()
-                logging.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
-        
-                # 💾 Если ожидается следующий шаг — сохраняем фазу
-                if result.get("status") == "ask":
-                    sessions[user_id] = {"phase": "answer_tool", "step": 1}
-                    questions = result.get("message", "")
-                    await message.answer(questions)  # Отправляем пользователю уточняющий вопрос
-        
-                else:
-                    await message.answer(result.get("message", "✅ Готово."))
-            except Exception as e:
-                logging.error(f"Ошибка запроса в тулс: {e}")
-                await message.answer("❌ Ошибка соединения с тулсом.")
-
-        json_data = {
-            "task": task,
-            "params": params,
-            "user_id": user_id
-        }
-
-        logging.info(f"[TOOL REQUEST] Отправка в тулс: {task} (endpoint: {endpoint})")
-        async with httpx.AsyncClient() as client:
-            r = await client.post(f"{TOOLS_URL}{endpoint}", json=json_data, headers=headers)
-
-            # Логирование статуса и тела ответа
-            logging.info(f"[TOOL RESPONSE] Статус: {r.status_code}, Тело ответа: {r.text}")
-
-            if r.status_code != 200:
-                return f"⚠️ Ошибка тулса: ответ {r.status_code}"
-
-            result = r.json()
+            response = await client.post(
+                f"{TOOLS_URL}/generate_tool",  # или /answer_tool, если это этап ответа
+                json={"user_id": user_id, "task": task, "params": params}
+            )
+            response.raise_for_status()
+            result = response.json()
             logging.info(f"[TOOL RESPONSE] Ответ от тулса: {result}")
 
+            # Ответ от тулс-бота
             if result.get("status") == "ask":
-                return "❓ Чтобы собрать инструмент, нужны уточнения:\n" + "\n".join(result.get("questions", []))
-
-            if result.get("status") == "found":
-                msg = "🔎 Найдены похожие инструменты:\n"
-                for tool in result.get("tools", []):
-                    msg += f"• <b>{tool['name']}</b>: {tool['description']}\n"
-                return msg + "\nХочешь использовать один из них или уточнить задачу?"
-
-            if "result" in result:
-                user_sessions.pop(user_id, None)  # завершили сессию
-                return result["result"] + "\n\n<i>(сгенерировано тулс-ботом)</i>"
-
-            if result.get("status") == "error":
-                return "⚠️ Ошибка: " + result.get("message", "Неизвестная ошибка")
-
-            return "⚠️ Неожиданный ответ от тулс-бота"
+                # Отправляем уточняющий вопрос
+                return f"❓ {result.get('message')}"
+            elif result.get("status") == "found":
+                tools = "\n".join([f"• <b>{tool['name']}</b>: {tool['description']}" for tool in result.get("tools", [])])
+                return f"🔎 Найдены похожие инструменты:\n{tools}\n\nХотите использовать один из них?"
+            elif "result" in result:
+                return f"{result['result']} \n\n<i>(сгенерировано тулс-ботом)</i>"
+            else:
+                return "⚠️ Неизвестный ответ от тулс-бота"
 
     except Exception as e:
         logging.error(f"Ошибка запроса в тулс: {e}")
