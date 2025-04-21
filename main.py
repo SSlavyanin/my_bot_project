@@ -144,7 +144,7 @@ async def request_tool_from_service(task: str, params: dict, message: types.Mess
 
         logging.info(f"[TOOL REQUEST] Отправка в тулс: {task} (endpoint: {endpoint})")
         async with httpx.AsyncClient() as client:
-            r = await client.post(f"{TOOLS_BOT_URL}{endpoint}", json=json_data, headers=headers)
+            r = await client.post(f"{TOOLS_URL}{endpoint}", json=json_data, headers=headers)
 
             # Логирование статуса и тела ответа
             logging.info(f"[TOOL RESPONSE] Статус: {r.status_code}, Тело ответа: {r.text}")
