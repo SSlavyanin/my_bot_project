@@ -90,7 +90,10 @@ async def generate_reply(user_message: str) -> str:
             r = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
             data = r.json()
             if r.status_code == 200 and 'choices' in data:
-                return data['choices'][0]['message']['content']
+                response = data['choices'][0]['message']['content']
+                # Обработка HTML-разметки
+                response = response.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
+                return response
             else:
                 logging.error(f"Ошибка генерации: {data}")
                 return "⚠️ Ошибка генерации"
