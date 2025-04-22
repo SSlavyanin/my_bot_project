@@ -211,21 +211,31 @@ async def start_handler(msg: types.Message):
 # 📥 Обработка всех входящих сообщений
 @dp.message_handler()
 async def reply_handler(msg: types.Message):
+    user_id = str(msg.from_user.id)
+    user_text = msg.text.strip()
+    user_text_lower = user_text.lower()
+
     if msg.chat.type in ["group", "supergroup"]:
         if f"@{(await bot.get_me()).username}" in msg.text:
             cleaned = msg.text.replace(f"@{(await bot.get_me()).username}", "").strip()
             response = await generate_reply(cleaned, message=msg)
             await msg.reply(response, parse_mode=ParseMode.HTML)
-    else:
-        user_text = msg.text.strip()
-        user_text_lower = user_text.lower()
+        return
 
-        if any(x in user_text_lower for x in ["сделай", "инструмент", "генератор", "бот", "утилита"]):
-            response = await handle_tool_request(msg)
-            return  # Ответ уже отправлен тулс-ботом
-        else:
-            response = await generate_reply(msg.text, message=msg)
-            await msg.reply(response, parse_mode=ParseMode.HTML)
+    # 🔁 Если юзер уже в диалоге с тулс-ботом — просто пересылаем
+    if user_tool_states.get(user_id) == "in_progress":
+        await handle_tool_request(msg)
+        return
+
+    # 🧠 Если триггер на запуск инструмента — стартуем сессии
+    if any(x in user_text_lower for x in ["сделай", "инструмент", "генератор", "бот", "утилита"]):
+        await handle_tool_request(msg)
+        return
+
+    # 🤖 Иначе обычный ответ AIlex
+    response = await generate_reply(msg.text, message=msg)
+    await msg.reply(response, parse_mode=ParseMode.HTML)
+
 
 # 🚀 Главная точка входа
 async def main():
