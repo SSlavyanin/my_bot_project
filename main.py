@@ -72,13 +72,17 @@ async def get_rss_titles():
         logging.error(f"Ошибка при получении RSS: {e}")
         return []
 
+
 # 🛠️ Делегирование задачи тулс-боту
+user_tool_states = {}
+
 async def handle_tool_request(message: types.Message):
     user_id = str(message.from_user.id)
     headers = {
         "Content-Type": "application/json",
         "Ailex-Shared-Secret": AILEX_SHARED_SECRET
     }
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -88,15 +92,30 @@ async def handle_tool_request(message: types.Message):
             )
             response.raise_for_status()
             data = response.json()
+
             status = data.get("status")
             msg = data.get("message", "⚠️ Нет ответа от тулс-бота.")
+
+            if status == "need_more_info":
+                user_tool_states[user_id] = "in_progress"
+            elif status in ["ready", "error"]:
+                user_tool_states.pop(user_id, None)
+
             await message.answer(f"<b>📦 Ответ от тулс-бота:</b>\n{msg}", parse_mode="HTML")
+
     except Exception as e:
         logging.error(f"Ошибка при обращении к тулс-боту: {e}")
         await message.answer("⚠️ Ошибка при обращении к тулс-боту.")
 
 # 🤖 Генерация ответа через OpenRouter
 async def generate_reply(user_message: str, message: types.Message) -> str:
+    user_id = str(message.from_user.id)
+
+    # Если тулс-бот уже в процессе общения — просто перекидываем сообщение
+    if user_tool_states.get(user_id) == "in_progress":
+        await handle_tool_request(message)
+        return "🔄 Сообщение передано тулс-боту."
+
     chat_type = message.chat.type
 
     headers = {
@@ -104,6 +123,7 @@ async def generate_reply(user_message: str, message: types.Message) -> str:
         "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
         "X-Title": "AIlexBot"
     }
+
     if chat_type == "private":
         SYSTEM_PROMPT = "Ты — AIlex, нейроэксперт по ИИ и автоматизации. Отвечай как человек: дружелюбно, ясно, по делу. Помогай, уточняй детали, предлагай решения."
     else:
@@ -139,6 +159,7 @@ async def generate_reply(user_message: str, message: types.Message) -> str:
     except Exception as e:
         logging.error(f"Ошибка при генерации текста: {e}")
         return "⚠️ Ошибка генерации"
+
 
 # ✅ Проверка качества текста
 def quality_filter(text: str) -> bool:
