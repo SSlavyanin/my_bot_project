@@ -1,4 +1,5 @@
 import os
+import traceback
 import logging
 import asyncio
 import random
@@ -104,7 +105,8 @@ async def handle_tool_request(message: types.Message):
             await message.answer(f"<b>📦 Ответ от тулс-бота:</b>\n{msg}", parse_mode="HTML")
 
     except Exception as e:
-        logging.error(f"Ошибка при обращении к тулс-боту: {e}")
+        logging.error("Ошибка при обращении к тулс-боту:")
+        logging.error(traceback.format_exc())
         await message.answer("⚠️ Ошибка при обращении к тулс-боту.")
 
 # 🤖 Генерация ответа через OpenRouter
