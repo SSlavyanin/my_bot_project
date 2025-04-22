@@ -252,6 +252,16 @@ async def start_handler(msg: types.Message):
     if msg.chat.type == "private":
         await msg.reply("Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации. Чем могу помочь?")
 
+
+# ✅ Фильтрация HTML — только допустимые теги Telegram
+def clean_html_for_telegram(html: str) -> str:
+    allowed_tags = {"b", "strong", "i", "em", "u", "ins", "s", "strike", "del", "code", "pre", "a", "span"}
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all(True):
+        if tag.name not in allowed_tags:
+            tag.unwrap()
+    return str(soup)
+
 # 📥 Обработка всех входящих сообщений
 @dp.message_handler()
 async def reply_handler(msg: types.Message):
@@ -263,7 +273,8 @@ async def reply_handler(msg: types.Message):
         if f"@{(await bot.get_me()).username}" in msg.text:
             cleaned = msg.text.replace(f"@{(await bot.get_me()).username}", "").strip()
             response = await generate_reply(cleaned, message=msg)
-            await msg.reply(response, parse_mode=ParseMode.HTML)
+            safe_response = clean_html_for_telegram(response)
+            await msg.reply(safe_response, parse_mode=ParseMode.HTML)
         return
 
     # 🔁 Если юзер уже в диалоге с тулс-ботом — просто пересылаем
@@ -278,7 +289,8 @@ async def reply_handler(msg: types.Message):
 
     # 🤖 Иначе обычный ответ AIlex
     response = await generate_reply(msg.text, message=msg)
-    await msg.reply(response, parse_mode=ParseMode.HTML)
+    safe_response = clean_html_for_telegram(response)
+    await msg.reply(safe_response, parse_mode=ParseMode.HTML)
 
 
 # 🚀 Главная точка входа
