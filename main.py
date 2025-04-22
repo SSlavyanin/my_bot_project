@@ -5,6 +5,7 @@ import asyncio
 import random
 from flask import Flask
 from threading import Thread
+from bs4 import BeautifulSoup
 import httpx
 import xml.etree.ElementTree as ET
 from aiogram import Bot, Dispatcher, types
@@ -77,6 +78,39 @@ async def get_rss_titles():
 # 🛠️ Делегирование задачи тулс-боту
 user_tool_states = {}
 
+from bs4 import BeautifulSoup
+
+# 🔎 Фильтр Telegram-friendly HTML
+def clean_html_for_telegram(html: str) -> str:
+    allowed_tags = {"b", "strong", "i", "em", "u", "ins", "s", "strike", "del", "code", "pre", "a", "span"}
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all(True):
+        if tag.name not in allowed_tags:
+            tag.unwrap()
+    return str(soup)
+
+# 🛠️ Делегирование задачи тулс-боту
+from bs4 import BeautifulSoup
+
+# 🔎 Фильтр Telegram-friendly HTML
+def clean_html_for_telegram(html: str) -> str:
+    allowed_tags = {"b", "strong", "i", "em", "u", "ins", "s", "strike", "del", "code", "pre", "a", "span"}
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all(True):
+        if tag.name not in allowed_tags:
+            tag.unwrap()
+    return str(soup)
+
+# 🔎 Фильтр Telegram-friendly HTML
+def clean_html_for_telegram(html: str) -> str:
+    allowed_tags = {"b", "strong", "i", "em", "u", "ins", "s", "strike", "del", "code", "pre", "a", "span"}
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all(True):
+        if tag.name not in allowed_tags:
+            tag.unwrap()
+    return str(soup)
+
+# 🛠️ Делегирование задачи тулс-боту
 async def handle_tool_request(message: types.Message):
     user_id = str(message.from_user.id)
     headers = {
@@ -95,7 +129,8 @@ async def handle_tool_request(message: types.Message):
             data = response.json()
 
             status = data.get("status")
-            msg = data.get("message", "⚠️ Нет ответа от тулс-бота.")
+            raw_msg = data.get("message", "⚠️ Нет ответа от тулс-бота.")
+            msg = clean_html_for_telegram(raw_msg)
 
             if status == "need_more_info":
                 user_tool_states[user_id] = "in_progress"
@@ -108,6 +143,13 @@ async def handle_tool_request(message: types.Message):
         logging.error("Ошибка при обращении к тулс-боту:")
         logging.error(traceback.format_exc())
         await message.answer("⚠️ Ошибка при обращении к тулс-боту.")
+
+
+    except Exception as e:
+        logging.error("Ошибка при обращении к тулс-боту:")
+        logging.error(traceback.format_exc())
+        await message.answer("⚠️ Ошибка при обращении к тулс-боту.")
+
 
 # 🤖 Генерация ответа через OpenRouter
 async def generate_reply(user_message: str, message: types.Message) -> str:
