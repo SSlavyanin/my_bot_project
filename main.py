@@ -10,6 +10,9 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ParseMode
 from bs4 import BeautifulSoup
 
+# Логирование ошибок
+logging.getLogger("aiogram.event").setLevel(logging.WARNING)
+
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
