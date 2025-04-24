@@ -83,7 +83,7 @@ def clean_html_for_telegram(html: str) -> str:
     return cleaned
 
 # 🧠 Генерация ответа
-async def generate_reply(user_message: str, message: types.Message) -> str:
+async def generate_reply(user_message: str) -> str:
     logging.info(f"🎯 Генерация по теме: {user_message}")
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -158,7 +158,7 @@ async def auto_posting():
                     from_user=types.User(id=0, is_bot=False, first_name="AIlex"),
                     text=topic
                 )
-                post = await generate_reply(topic, dummy_message)
+                post = await generate_reply(topic)
                 logging.info(f"📝 Пост получен: {post[:80]}...")
                 if quality_filter(post):
                     await bot.send_message(GROUP_ID, post, reply_markup=create_keyboard(), parse_mode=ParseMode.HTML)
