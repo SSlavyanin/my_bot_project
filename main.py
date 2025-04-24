@@ -119,10 +119,9 @@ async def generate_reply(user_message: list) -> str:
         "Используй HTML-разметку: <b>жирный</b> текст, <i>курсив</i>, эмодзи, списки. "
         "Не используй Markdown. Не объясняй, что ты ИИ. Просто сделай крутой пост!"
     )
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + message_history
     payload = {
         "model": "meta-llama/llama-4-maverick",
-        "messages": messages
+        "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + user_message
     }
     logging.info(f"📚 Итоговые сообщения: {[m['role'] + ': ' + m['content'][:50] for m in payload['messages']]}")
 
@@ -220,7 +219,7 @@ async def reply_handler(msg: types.Message):
 
     if msg.chat.type in ["group", "supergroup"]:
         if f"@{(await bot.get_me()).username}" in msg.text:
-            user_sessions[user_id].append({"role": "user", "content": cleaned})
+            user_sessions[user_id].append({"role": "user", "content": user_text})
             messages = list(user_sessions[user_id])
             response = await generate_reply(messages)
             user_sessions[user_id].append({"role": "assistant", "content": response})
