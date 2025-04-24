@@ -84,7 +84,6 @@ def clean_html_for_telegram(html: str) -> str:
 
 # 🧠 Генерация ответа
 async def generate_reply(user_message: str) -> str:
-    logging.info(f"🎯 Генерация по теме: {user_message}")
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
@@ -110,11 +109,9 @@ async def generate_reply(user_message: str) -> str:
         async with httpx.AsyncClient() as client:
             r = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
             data = r.json()
-            logging.info(f"📡 Ответ от модели: {r.status_code}, keys: {list(data.keys())}")
             if r.status_code == 200 and 'choices' in data:
                 response = data['choices'][0]['message']['content']
                 response = response.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
-                logging.info(f"✅ Генерация успешна, длина: {len(response)}")
                 return response
             else:
                 logging.error(f"Ошибка генерации: {data}")
@@ -122,6 +119,7 @@ async def generate_reply(user_message: str) -> str:
     except Exception as e:
         logging.error(f"Ошибка при генерации текста: {e}")
         return "⚠️ Ошибка генерации"
+
 
 # 🔎 Фильтр качества
 def quality_filter(text: str) -> bool:
@@ -151,13 +149,13 @@ async def auto_posting():
             use_topic = not use_topic
 
             if topic:              
-                dummy_message = types.Message(
-                    message_id=0,
-                    date=datetime.datetime.now(),
-                    chat=types.Chat(id=0, type="private"),
-                    from_user=types.User(id=0, is_bot=False, first_name="AIlex"),
-                    text=topic
-                )
+                # dummy_message = types.Message(
+                #     message_id=0,
+                #     date=datetime.datetime.now(),
+                #     chat=types.Chat(id=0, type="private"),
+                #     from_user=types.User(id=0, is_bot=False, first_name="AIlex"),
+                #     text=topic
+                # )
                 post = await generate_reply(topic)
                 logging.info(f"📝 Пост получен: {post[:80]}...")
                 if quality_filter(post):
