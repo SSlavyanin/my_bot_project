@@ -17,7 +17,8 @@ user_sessions = {}
 
 # 🧠 Память сессий
 from collections import defaultdict, deque
-user_sessions = defaultdict(lambda: deque(maxlen=10))  # Храним последние 6 сообщений на пользователя
+user_sessions = defaultdict(lambda: deque(maxlen=10))  # Для сообщений
+last_interaction = {}  # Для времени взаимодействия
 
 # 🪵 Настройка логов
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -58,16 +59,17 @@ use_topic = True
 
 # Функция для обновления времени последнего взаимодействия
 def update_user_session(user_id):
-    user_sessions[user_id] = time.time()
+    last_interaction[user_id] = time.time()  # Используем отдельный словарь
     logging.info(f"✅ Обновлено время взаимодействия с пользователем {user_id}")
 
 # Функция для очистки сессии по таймауту
 async def clean_inactive_sessions():
     while True:
         current_time = time.time()
-        for user_id, last_interaction in list(user_sessions.items()):
-            if current_time - last_interaction > 1800:  # 30 минут
-                del user_sessions[user_id]
+        for user_id, last_interaction_time in list(last_interaction.items()):
+            if current_time - last_interaction_time > 1800:  # 30 минут
+                del last_interaction[user_id]
+                del user_sessions[user_id]  # Удаляем также сессии сообщений
                 logging.info(f"❌ Сессия пользователя {user_id} удалена из-за 30 минут неактивности.")
         await asyncio.sleep(60)  # Проверка каждую минуту
 
@@ -221,7 +223,7 @@ async def reply_handler(msg: types.Message):
     if msg.chat.type in ["group", "supergroup"]:
         if f"@{(await bot.get_me()).username}" in msg.text:
             cleaned = user_text.replace(f"@{(await bot.get_me()).username}", "").strip()
-            user_sessions[user_id].append({"role": "user", "content": cleaned})
+            user_sessions[user_id].append({"role": "user", "content": user_text})
             messages = list(user_sessions[user_id])
             response = await generate_reply(messages)
             user_sessions[user_id].append({"role": "assistant", "content": response})
