@@ -218,7 +218,7 @@ async def reply_handler(msg: types.Message):
     if msg.chat.type in ["group", "supergroup"]:
         if f"@{(await bot.get_me()).username}" in msg.text:
             cleaned = user_text.replace(f"@{(await bot.get_me()).username}", "").strip()
-            user_sessions[user_id].append({"role": "user", "content": user_text})
+            user_sessions[user_id].append({"role": "user", "content": cleaned})
             messages = list(user_sessions[user_id])
             response = await generate_reply(messages)
             user_sessions[user_id].append({"role": "assistant", "content": response})
