@@ -1,4 +1,5 @@
 import os
+import time
 import datetime
 import logging
 import asyncio
@@ -10,6 +11,13 @@ import xml.etree.ElementTree as ET
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ParseMode
 from bs4 import BeautifulSoup
+
+# Вставить переменные для отслеживания времени
+user_sessions = {}
+
+# 🧠 Память сессий
+from collections import defaultdict, deque
+user_sessions = defaultdict(lambda: deque(maxlen=10))  # Храним последние 6 сообщений на пользователя
 
 # 🪵 Настройка логов
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -48,6 +56,26 @@ topic_index = 0
 rss_index = 0
 use_topic = True
 
+import time
+
+# Вставить переменные для отслеживания времени
+user_sessions = {}
+
+# Функция для обновления времени последнего взаимодействия
+def update_user_session(user_id):
+    user_sessions[user_id] = time.time()
+    logging.info(f"✅ Обновлено время взаимодействия с пользователем {user_id}")
+
+# Функция для очистки сессии по таймауту
+async def clean_inactive_sessions():
+    while True:
+        current_time = time.time()
+        for user_id, last_interaction in list(user_sessions.items()):
+            if current_time - last_interaction > 1800:  # 30 минут
+                del user_sessions[user_id]
+                logging.info(f"❌ Сессия пользователя {user_id} удалена из-за 30 минут неактивности.")
+        await asyncio.sleep(60)  # Проверка каждую минуту
+
 # 🔘 Кнопка под постами
 def create_keyboard():
     return InlineKeyboardMarkup().add(
@@ -83,7 +111,7 @@ def clean_html_for_telegram(html: str) -> str:
     return cleaned
 
 # 🧠 Генерация ответа
-async def generate_reply(user_message: str) -> str:
+async def generate_reply(user_message: list) -> str:
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
@@ -148,14 +176,7 @@ async def auto_posting():
                     logging.warning("❌ Пустой список RSS-заголовков.")
             use_topic = not use_topic
 
-            if topic:              
-                # dummy_message = types.Message(
-                #     message_id=0,
-                #     date=datetime.datetime.now(),
-                #     chat=types.Chat(id=0, type="private"),
-                #     from_user=types.User(id=0, is_bot=False, first_name="AIlex"),
-                #     text=topic
-                # )
+            if topic:
                 post = await generate_reply(topic)
                 logging.info(f"📝 Пост получен: {post[:80]}...")
                 if quality_filter(post):
@@ -197,16 +218,27 @@ async def start_handler(msg: types.Message):
 # 📥 Ответ на сообщения
 @dp.message_handler()
 async def reply_handler(msg: types.Message):
+    user_id = msg.from_user.id
+    update_user_session(user_id)  # Обновляем время последнего взаимодействия с пользователем
     user_text = msg.text.strip()
     logging.info(f"📨 Сообщение от пользователя: {user_text[:50]}")
+
     if msg.chat.type in ["group", "supergroup"]:
         if f"@{(await bot.get_me()).username}" in msg.text:
-            cleaned = msg.text.replace(f"@{(await bot.get_me()).username}", "").strip()
-            response = await generate_reply(cleaned, message=msg)
+            cleaned = user_text.replace(f"@{(await bot.get_me()).username}", "").strip()
+            user_sessions[user_id].append({"role": "user", "content": cleaned})
+            messages = list(user_sessions[user_id])
+            response = await generate_reply(messages)
+            user_sessions[user_id].append({"role": "assistant", "content": response})
             await msg.reply(clean_html_for_telegram(response), parse_mode=ParseMode.HTML)
         return
-    response = await generate_reply(msg.text, message=msg)
+
+    user_sessions[user_id].append({"role": "user", "content": user_text})
+    messages = list(user_sessions[user_id])
+    response = await generate_reply(messages)
+    user_sessions[user_id].append({"role": "assistant", "content": response})
     await msg.reply(clean_html_for_telegram(response), parse_mode=ParseMode.HTML)
+
 
 # 🚀 Запуск
 async def main():
