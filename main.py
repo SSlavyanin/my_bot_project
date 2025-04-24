@@ -1,4 +1,5 @@
 import os
+import datetime
 import logging
 import asyncio
 import random
@@ -149,9 +150,10 @@ async def auto_posting():
                     logging.warning("❌ Пустой список RSS-заголовков.")
             use_topic = not use_topic
 
-            if topic:
+            if topic:              
                 dummy_message = types.Message(
-                    message_id=0, date=None,
+                    message_id=0,
+                    date=datetime.datetime.now(),
                     chat=types.Chat(id=0, type="private"),
                     from_user=types.User(id=0, is_bot=False, first_name="AIlex"),
                     text=topic
