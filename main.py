@@ -10,23 +10,21 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ParseMode
 from bs4 import BeautifulSoup
 
-# Вместо DEBUG
+# 🪵 Настройка логов
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
-# logging.getLogger("aiogram.event").setLevel(logging.WARNING)
 
 # 🔐 Переменные среды
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+logging.info(f"🔐 TOKEN загружен: {'Да' if BOT_TOKEN else 'Нет'}, API_KEY: {'Да' if OPENROUTER_API_KEY else 'Нет'}")
 
-# 📍 ID Telegram-группы для автопостинга
+# 📍 ID Telegram-группы
 GROUP_ID = -1002572659328
 OPENAI_BASE_URL = "https://openrouter.ai/api/v1"
 
-# 🧠 Настройка aiogram и логгирования
+# 🤖 Бот и диспетчер
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
-logging.basicConfig(level=logging.INFO)
 
 # 🌐 Flask-приложение
 app = Flask(__name__)
@@ -34,6 +32,7 @@ app = Flask(__name__)
 def index():
     return "Bot is alive!"
 def run_flask():
+    logging.info("🚀 Flask запущен на 0.0.0.0:8080")
     app.run(host="0.0.0.0", port=8080)
 
 # 📚 Темы
@@ -54,31 +53,37 @@ def create_keyboard():
         InlineKeyboardButton("🤖 Обсудить с AIlex", url="https://t.me/ShilizyakaBot?start=from_post")
     )
 
-# 📡 RSS
+# 📡 RSS-заголовки
 async def get_rss_titles():
     RSS_FEED_URL = "https://habr.com/ru/rss/"
     try:
         async with httpx.AsyncClient() as client:
             r = await client.get(RSS_FEED_URL)
+            logging.info(f"📥 Запрос RSS: {r.status_code}")
             if r.status_code != 200:
                 return []
             root = ET.fromstring(r.text)
-            return [item.find("title").text for item in root.findall(".//item") if item.find("title") is not None]
+            titles = [item.find("title").text for item in root.findall(".//item") if item.find("title") is not None]
+            logging.info(f"📚 Получено RSS-заголовков: {len(titles)}")
+            return titles
     except Exception as e:
         logging.error(f"Ошибка при получении RSS: {e}")
         return []
 
-# 🔎 HTML фильтр
+# 🧼 HTML-фильтр
 def clean_html_for_telegram(html: str) -> str:
     allowed_tags = {"b", "strong", "i", "em", "u", "ins", "s", "strike", "del", "code", "pre", "a", "span"}
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup.find_all(True):
         if tag.name not in allowed_tags:
             tag.unwrap()
-    return str(soup)
+    cleaned = str(soup)
+    logging.info(f"🧼 Очистка HTML: {cleaned[:80]}...")
+    return cleaned
 
-# 🤖 Генерация
+# 🧠 Генерация ответа
 async def generate_reply(user_message: str, message: types.Message) -> str:
+    logging.info(f"🎯 Генерация по теме: {user_message}")
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "https://t.me/YOUR_CHANNEL_NAME",
@@ -104,9 +109,11 @@ async def generate_reply(user_message: str, message: types.Message) -> str:
         async with httpx.AsyncClient() as client:
             r = await client.post(f"{OPENAI_BASE_URL}/chat/completions", json=payload, headers=headers)
             data = r.json()
+            logging.info(f"📡 Ответ от модели: {r.status_code}, keys: {list(data.keys())}")
             if r.status_code == 200 and 'choices' in data:
                 response = data['choices'][0]['message']['content']
                 response = response.replace("<ul>", "").replace("</ul>", "").replace("<li>", "• ").replace("</li>", "")
+                logging.info(f"✅ Генерация успешна, длина: {len(response)}")
                 return response
             else:
                 logging.error(f"Ошибка генерации: {data}")
@@ -115,7 +122,7 @@ async def generate_reply(user_message: str, message: types.Message) -> str:
         logging.error(f"Ошибка при генерации текста: {e}")
         return "⚠️ Ошибка генерации"
 
-# ✅ Фильтр качества
+# 🔎 Фильтр качества
 def quality_filter(text: str) -> bool:
     if len(text.split()) < 20: return False
     if any(x in text.lower() for x in ["извин", "не могу", "как и было сказано"]): return False
@@ -126,29 +133,48 @@ async def auto_posting():
     global topic_index, rss_index, use_topic
     while True:
         topic = None
-        if use_topic:
-            topic = TOPICS[topic_index % len(TOPICS)]
-            topic_index += 1
-        else:
-            rss_titles = await get_rss_titles()
-            if rss_titles:
-                topic = rss_titles[rss_index % len(rss_titles)]
-                rss_index += 1
-        use_topic = not use_topic
+        try:
+            logging.info(f"▶️ Цикл автопостинга. use_topic={use_topic}, topic_index={topic_index}, rss_index={rss_index}")
+            if use_topic:
+                topic = TOPICS[topic_index % len(TOPICS)]
+                logging.info(f"🧠 Тема выбрана: {topic}")
+                topic_index += 1
+            else:
+                rss_titles = await get_rss_titles()
+                if rss_titles:
+                    topic = rss_titles[rss_index % len(rss_titles)]
+                    logging.info(f"📰 RSS тема выбрана: {topic}")
+                    rss_index += 1
+                else:
+                    logging.warning("❌ Пустой список RSS-заголовков.")
+            use_topic = not use_topic
 
-        if topic:
-            try:
-                dummy_message = types.Message(message_id=0, date=None,
+            if topic:
+                dummy_message = types.Message(
+                    message_id=0, date=None,
                     chat=types.Chat(id=0, type="private"),
                     from_user=types.User(id=0, is_bot=False, first_name="AIlex"),
-                    text=topic)
-                post = await generate_reply(topic, message=dummy_message)
+                    text=topic
+                )
+                post = await generate_reply(topic, dummy_message)
+                logging.info(f"📝 Пост получен: {post[:80]}...")
                 if quality_filter(post):
                     await bot.send_message(GROUP_ID, post, reply_markup=create_keyboard(), parse_mode=ParseMode.HTML)
-                    logging.info(f"✅ Пост отправлен: {topic}")
-            except Exception as e:
-                logging.error(f"Ошибка постинга: {e}")
-        await asyncio.sleep(60 * 30)
+                    logging.info("✅ Пост успешно отправлен")
+                else:
+                    logging.warning("⚠️ Пост не прошёл фильтр качества.")
+            else:
+                logging.warning("⚠️ Не выбрана тема для поста.")
+        except Exception as e:
+            logging.error(f"❌ Ошибка постинга: {e}")
+
+        try:
+            delay = 1800  # 30 минут
+            logging.info(f"⏳ Ожидание {delay} секунд...")
+            await asyncio.sleep(delay)
+        except Exception as e:
+            logging.error(f"❌ Ошибка в sleep: {e}")
+            await asyncio.sleep(1800)
 
 # 🔁 Self-ping
 async def self_ping():
@@ -156,6 +182,7 @@ async def self_ping():
         try:
             async with httpx.AsyncClient() as client:
                 await client.get("https://my-bot-project-8wit.onrender.com/")
+                logging.info("📡 Self-ping выполнен")
         except Exception as e:
             logging.error(f"Self-ping error: {e}")
         await asyncio.sleep(600)
@@ -164,24 +191,26 @@ async def self_ping():
 @dp.message_handler(commands=["start"])
 async def start_handler(msg: types.Message):
     if msg.chat.type == "private":
+        logging.info("👋 /start от пользователя")
         await msg.reply("Привет! 👋 Я — AIlex, твой помощник по ИИ и автоматизации. Чем могу помочь?")
 
-# 📥 Обработка сообщений
+# 📥 Ответ на сообщения
 @dp.message_handler()
 async def reply_handler(msg: types.Message):
     user_text = msg.text.strip()
+    logging.info(f"📨 Сообщение от пользователя: {user_text[:50]}")
     if msg.chat.type in ["group", "supergroup"]:
         if f"@{(await bot.get_me()).username}" in msg.text:
             cleaned = msg.text.replace(f"@{(await bot.get_me()).username}", "").strip()
             response = await generate_reply(cleaned, message=msg)
             await msg.reply(clean_html_for_telegram(response), parse_mode=ParseMode.HTML)
         return
-
     response = await generate_reply(msg.text, message=msg)
     await msg.reply(clean_html_for_telegram(response), parse_mode=ParseMode.HTML)
 
-# 🚀 Главный запуск
+# 🚀 Запуск
 async def main():
+    logging.info("🚀 Бот запускается...")
     asyncio.create_task(self_ping())
     asyncio.create_task(auto_posting())
     await dp.start_polling()
