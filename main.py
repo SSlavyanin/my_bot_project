@@ -12,8 +12,6 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ParseMode
 from bs4 import BeautifulSoup
 
-# Вставить переменные для отслеживания времени
-user_sessions = {}
 
 # 🧠 Память сессий
 from collections import defaultdict, deque
@@ -124,10 +122,7 @@ async def generate_reply(user_message: list) -> str:
 
     payload = {
         "model": "meta-llama/llama-4-maverick",
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message}
-        ]
+        "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + user_message
     }
 
     try:
