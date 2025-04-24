@@ -124,6 +124,7 @@ async def generate_reply(user_message: list) -> str:
         "model": "meta-llama/llama-4-maverick",
         "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + user_message
     }
+    logging.info(f"📚 Итоговые сообщения: {[m['role'] + ': ' + m['content'][:50] for m in payload['messages']]}")
 
     try:
         async with httpx.AsyncClient() as client:
