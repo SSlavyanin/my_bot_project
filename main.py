@@ -242,6 +242,7 @@ async def main():
     logging.info("🚀 Бот запускается...")
     asyncio.create_task(self_ping())
     asyncio.create_task(auto_posting())
+    asyncio.create_task(clean_inactive_sessions())  # 👈 добавили автоочистку сессий
     await dp.start_polling()
 
 if __name__ == "__main__":
