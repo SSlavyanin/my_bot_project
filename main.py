@@ -56,11 +56,6 @@ topic_index = 0
 rss_index = 0
 use_topic = True
 
-import time
-
-# Вставить переменные для отслеживания времени
-user_sessions = {}
-
 # Функция для обновления времени последнего взаимодействия
 def update_user_session(user_id):
     user_sessions[user_id] = time.time()
