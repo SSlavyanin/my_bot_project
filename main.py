@@ -86,15 +86,16 @@ def create_keyboard():
 
 # 📡 Получение заголовков из RSS
 async def get_rss_titles():
-    RSS_FEED_URL = "https://habr.com/ru/rss/"
+    RSS_FEED_URL = "https://vc.ru/rss"
     try:
         async with httpx.AsyncClient() as client:
-            r = await client.get(RSS_FEED_URL)
+            headers = {"User-Agent": "Mozilla/5.0"}
+            r = await client.get(RSS_FEED_URL, headers=headers)
             logging.info(f"📥 Запрос RSS: {r.status_code}")
             if r.status_code != 200:
-                logging.error(f"⚠️ Ошибка загрузки RSS: {r.status_code}")
+                logging.warning(f"⚠️ Ответ Habr: {r.status_code}, текст: {r.text[:300]}")
                 return []
-            
+   
             logging.debug(f"Кодировка ответа RSS: {r.encoding}") # Логирование кодировки ответа
             logging.debug(f"🔍 Ответ RSS: {r.text[:500]}")  # Лог первых 500 символов
             root = ET.fromstring(r.text)
