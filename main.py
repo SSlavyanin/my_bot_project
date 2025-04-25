@@ -173,11 +173,11 @@ async def auto_posting():
         topic = None
         try:
             logging.info(f"▶️ Цикл автопостинга. use_topic={use_topic}, topic_index={topic_index}, rss_index={rss_index}")
-            # if use_topic:
-                # topic = TOPICS[topic_index % len(TOPICS)]
-                # topic_index += 1
+            if use_topic:
+                topic = TOPICS[topic_index % len(TOPICS)]
+                topic_index += 1
                 logging.info(f"🧠 Выбрана тема из списка: {topic}")
-            # else:
+            else:
                 rss_titles = await get_rss_titles()
                 if rss_titles:
                     topic = rss_titles[rss_index % len(rss_titles)]
