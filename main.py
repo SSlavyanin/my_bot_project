@@ -92,13 +92,17 @@ async def get_rss_titles():
             r = await client.get(RSS_FEED_URL)
             logging.info(f"📥 Запрос RSS: {r.status_code}")
             if r.status_code != 200:
+                logging.error(f"⚠️ Ошибка загрузки RSS: {r.status_code}")
                 return []
+            
+            logging.debug(f"Кодировка ответа RSS: {r.encoding}") # Логирование кодировки ответа
+            logging.debug(f"🔍 Ответ RSS: {r.text[:500]}")  # Лог первых 500 символов
             root = ET.fromstring(r.text)
             titles = [item.find("title").text for item in root.findall(".//item") if item.find("title") is not None]
             logging.info(f"📚 Получено RSS-заголовков: {len(titles)}")
             return titles
     except Exception as e:
-        logging.error(f"❌ Ошибка при получении RSS: {e}")
+        logging.error(f"❌ Ошибка при получении RSS: {e}", exc_info=True)
         return []
 
 # 🧼 Очистка HTML-текста
@@ -174,6 +178,7 @@ async def auto_posting():
                 rss_titles = await get_rss_titles()
                 if rss_titles:
                     topic = rss_titles[rss_index % len(rss_titles)]
+                    logging.info(f"📚 Заголовки RSS для постинга: {rss_titles}")
                     rss_index += 1
                     logging.info(f"📰 Выбрана тема из RSS: {topic}")
                 else:
